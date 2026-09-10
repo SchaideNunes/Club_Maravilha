@@ -1,0 +1,93 @@
+# ==============================================================================
+# CLUB MARAVILHA - DOCKER COMPOSE ORCHESTRATION
+# ==============================================================================
+# Execução de desenvolvimento:
+# docker compose up -d --build
+# Logs em tempo real:
+# docker compose logs -f
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # [1] BANCO DE DADOS RELACIONAL (PostgreSQL 16)
+  # ----------------------------------------------------------------------------
+  db:
+    image: postgres:16-alpine
+    container_name: club_maravilha_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-club_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}
+      POSTGRES_DB: ${POSTGRES_DB:-club_maravilha}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-club_admin} -d ${POSTGRES_DB:-club_maravilha}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - club_network
+
+  # ----------------------------------------------------------------------------
+  # [2] BACKEND API (Python 3.11 + FastAPI + Uvicorn com Hot-Reload)
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: club_maravilha_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+    ports:
+      - "${PORT_BACKEND:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      # Sobrescreve DATABASE_URL caso rode dentro da rede do compose
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}@db:5432/${POSTGRES_DB:-club_maravilha}
+      DATABASE_SYNC_URL: postgresql://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}@db:5432/${POSTGRES_DB:-club_maravilha}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - club_network
+
+  # ----------------------------------------------------------------------------
+  # [3] FRONTEND SPA (React 18 + TypeScript + Vite com Hot-Reload)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: club_maravilha_frontend
+    command: npm run dev -- --host 0.0.0.0 --port 5173
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "${PORT_FRONTEND:-5173}:5173"
+    environment:
+      - VITE_API_URL=http://localhost:${PORT_BACKEND:-8000}
+      - CHOKIDAR_USEPOLLING=true # Garante detecção de hot-reload em volumes montados no Windows
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - club_network
+
+# ------------------------------------------------------------------------------
+# VOLUMES PERSISTENTES E REDES
+# ------------------------------------------------------------------------------
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  club_network:
+    driver: bridge

@@ -1,4 +1,4 @@
-import { ArrowRight, Calendar, Sparkles } from 'lucide-react';
+import { ArrowRight, Calendar } from 'lucide-react';
 import homepageImg from '../../assets/Homepage.png';
 
 interface HeroSectionProps {
@@ -24,13 +24,8 @@ export const HeroSection: React.FC<HeroSectionProps> = ({
         <div className="absolute inset-0 bg-radial-vignette opacity-50" />
       </div>
 
-      {/* Conteúdo Central Hero (Estilo AMOJA: Eyebrow + Nome do Clube em Destaque Imponente + CTA) */}
+      {/* Conteúdo Central Hero (Estilo AMOJA: Nome do Clube em Destaque Imponente + CTA) */}
       <div className="relative z-10 max-w-5xl mx-auto px-6 text-center pt-28 pb-32 flex flex-col items-center">
-        {/* Eyebrow / Tagline Refinada */}
-        <div className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-slate-900/60 border border-amber-400/30 backdrop-blur-md text-amber-300 text-xs font-medium tracking-widest uppercase mb-8 shadow-xl shadow-black/40">
-          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          <span>Complexo Esportivo & Resort Privativo • ~300 Associados</span>
-        </div>
 
         {/* Título Principal Imponente: CLUB MARAVILHA */}
         <h1 className="font-serif text-5xl sm:text-7xl md:text-8xl font-normal tracking-wide text-white drop-shadow-[0_10px_25px_rgba(0,0,0,0.8)] leading-[1.08] mb-6">

@@ -28,6 +28,12 @@ export default {
       },
       fontFamily: {
         sans: ['Outfit', 'Inter', 'sans-serif'],
+        serif: ['Playfair Display', 'Cormorant Garamond', 'Georgia', 'serif'],
+        display: ['Playfair Display', 'serif'],
+      },
+      letterSpacing: {
+        widest2: '.25em',
+        widest3: '.35em',
       }
     },
   },

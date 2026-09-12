@@ -18,6 +18,11 @@ class AgendamentoBase(BaseModel):
     def validate_horarios(self) -> "AgendamentoBase":
         if self.data_fim <= self.data_inicio:
             raise ValueError("A data/hora de término deve ser posterior à data/hora de início.")
+        duracao_minutos = (self.data_fim - self.data_inicio).total_seconds() / 60
+        if duracao_minutos < 30:
+            raise ValueError("A duração mínima de agendamento é de 30 minutos.")
+        if duracao_minutos > 120:
+            raise ValueError("A duração máxima de agendamento é de 120 minutos (2 horas).")
         return self
 
 
@@ -33,3 +38,16 @@ class AgendamentoResponse(AgendamentoBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SlotDisponibilidade(BaseModel):
+    data_inicio: datetime
+    data_fim: datetime
+    disponivel: bool
+    agendamento_id: Optional[uuid.UUID] = None
+
+
+class DisponibilidadeDiaResponse(BaseModel):
+    quadra: TipoQuadra
+    data: datetime
+    slots: list[SlotDisponibilidade]

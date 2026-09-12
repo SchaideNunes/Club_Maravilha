@@ -20,7 +20,7 @@ async def test_crud_associado_flow(async_client: AsyncClient):
     """Testa cadastro e consulta de associado com validações."""
     payload = {
         "nome": "Marina Souza",
-        "cpf": "123.456.789-10",
+        "cpf": "123.456.789-09",
         "whatsapp": "+5511977776666",
         "email": "marina.souza@clubmaravilha.com",
         "foto_url": "https://club.com/marina.webp"
@@ -48,7 +48,8 @@ async def test_crud_associado_flow(async_client: AsyncClient):
     # 4. Listagem
     list_res = await async_client.get("/api/v1/associados/")
     assert list_res.status_code == 200
-    assert len(list_res.json()) >= 1
+    assert list_res.json()["total"] >= 1
+    assert len(list_res.json()["items"]) >= 1
 
 
 @pytest.mark.asyncio

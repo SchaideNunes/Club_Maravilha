@@ -6,6 +6,9 @@ from app.schemas.associado import (
     AssociadoCreate,
     AssociadoResponse,
     AssociadoUpdate,
+    PaginatedAssociadosResponse,
+    ImportErrorDetail,
+    ImportAssociadosResult,
 )
 from app.schemas.fatura import (
     FaturaBase,
@@ -28,6 +31,9 @@ __all__ = [
     "AssociadoCreate",
     "AssociadoUpdate",
     "AssociadoResponse",
+    "PaginatedAssociadosResponse",
+    "ImportErrorDetail",
+    "ImportAssociadosResult",
     "FaturaBase",
     "FaturaCreate",
     "FaturaResponse",

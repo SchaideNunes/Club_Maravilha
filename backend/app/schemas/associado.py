@@ -3,7 +3,7 @@ Schemas Pydantic v2 para validação e serialização de Associados.
 """
 import uuid
 from datetime import date, datetime
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from app.models.associado import StatusAssociado
 
@@ -41,3 +41,24 @@ class AssociadoResponse(AssociadoBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PaginatedAssociadosResponse(BaseModel):
+    items: List[AssociadoResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+
+
+class ImportErrorDetail(BaseModel):
+    linha: int
+    campo: str
+    motivo: str
+
+
+class ImportAssociadosResult(BaseModel):
+    total_lidos: int
+    total_importados: int
+    total_ignorados_duplicados: int
+    erros: List[ImportErrorDetail]

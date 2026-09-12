@@ -6,8 +6,8 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String, Text, JSON, UUID
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
@@ -107,7 +107,7 @@ class Fatura(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     
     # Auditoria de Webhook Instantâneo
     metadata_webhook: Mapped[Optional[Dict[str, Any]]] = mapped_column(
-        JSONB,
+        JSON().with_variant(JSONB, "postgresql"),
         nullable=True,
         comment="Payload JSON bruto retornado pelo gateway de pagamento"
     )

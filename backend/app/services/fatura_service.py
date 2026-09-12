@@ -14,6 +14,7 @@ from app.repositories.associado_repository import AssociadoRepository
 from app.repositories.convidado_repository import ConvidadoRepository
 from app.repositories.fatura_repository import FaturaRepository
 from app.schemas.fatura import FaturaCreate
+from app.services.catraca_service import CatracaService
 from app.services.pix_gateway_service import MockPixGateway
 from app.services.whatsapp_service import WhatsAppMessageBuilder
 from app.services.whatsapp_queue_service import MessagePriority, get_global_whatsapp_queue
@@ -186,7 +187,9 @@ class FaturaService:
 
         await self.session.commit()
 
-        # TODO(FASE-6-CATRACA): Sincronizar liberação imediata na catraca física
+        # 8. Sincronização imediata na catraca física
+        catraca_service = CatracaService(self.session)
+        await catraca_service.notify_turnstile_sync(reason=f"pix_paid_{txid}")
 
         return {
             "status": "success",

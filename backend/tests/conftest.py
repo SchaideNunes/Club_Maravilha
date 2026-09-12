@@ -55,7 +55,12 @@ async def async_client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, 
     Cliente HTTP assíncrono para testar endpoints FastAPI injetando o banco de teste.
     """
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
-        yield db_session
+        async with TestingSessionLocal() as session:
+            try:
+                yield session
+            except Exception:
+                await session.rollback()
+                raise
 
     app.dependency_overrides[get_db] = override_get_db
     

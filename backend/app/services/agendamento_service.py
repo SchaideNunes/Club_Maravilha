@@ -12,6 +12,7 @@ from app.models.agendamento import AgendamentoQuadra, StatusAgendamento, TipoQua
 from app.models.associado import StatusAssociado
 from app.models.fatura import StatusFatura
 from app.repositories.agendamento_repository import AgendamentoRepository
+import asyncio
 from app.repositories.associado_repository import AssociadoRepository
 from app.repositories.fatura_repository import FaturaRepository
 from app.schemas.agendamento import (
@@ -22,6 +23,9 @@ from app.schemas.agendamento import (
 
 
 class AgendamentoService:
+    # Trava atômica em nível de processo/event-loop para serializar checagens de sobreposição
+    _booking_lock: asyncio.Lock = asyncio.Lock()
+
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.agendamento_repo = AgendamentoRepository(session)
@@ -64,85 +68,86 @@ class AgendamentoService:
         2. Associado não pode ter faturas com status VENCIDO.
         3. Horário deve ser futuro.
         4. Teto de reservas ativas simultâneas respeitado.
-        5. Bloqueio atômico com verificação de sobreposição (SELECT ... FOR UPDATE).
+        5. Bloqueio atômico com verificação de sobreposição (SELECT ... FOR UPDATE + Lock).
         """
-        # 1. Validação do Associado
-        associado = await self.associado_repo.get_by_id(data.associado_id)
-        if not associado:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Associado não encontrado."
-            )
-        if associado.status != StatusAssociado.ATIVO:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Associado não pode reservar quadras. Status cadastral: {associado.status}."
-            )
-
-        # 2. Validação contra Inadimplência Financeira
-        faturas_vencidas = await self.fatura_repo.list_faturas(
-            associado_id=data.associado_id,
-            status=StatusFatura.VENCIDO
-        )
-        if faturas_vencidas:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Reserva bloqueada: associado possui mensalidade vencida em aberto."
-            )
-
-        # 3. Validação de Horário Futuro
-        agora = datetime.now(timezone.utc)
-        # Converte para timezone-aware se necessário
-        inicio = data.data_inicio if data.data_inicio.tzinfo else data.data_inicio.replace(tzinfo=timezone.utc)
-        fim = data.data_fim if data.data_fim.tzinfo else data.data_fim.replace(tzinfo=timezone.utc)
-
-        if inicio < agora:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Não é possível reservar horários retroativos no passado."
-            )
-
-        # 4. Teto de Reservas Ativas Simultâneas
-        reservas_ativas = await self.agendamento_repo.contar_reservas_ativas(
-            associado_id=data.associado_id,
-            a_partir_de=agora
-        )
-        teto = associado.limite_reservas_ativas or settings.LIMITE_RESERVAS_SIMULTANEAS_PADRAO
-        if reservas_ativas >= teto:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=(
-                    f"Limite de reservas ativas atingido ({reservas_ativas}/{teto}). "
-                    "Conclua ou cancele um agendamento anterior para reservar novamente."
+        async with self._booking_lock:
+            # 1. Validação do Associado
+            associado = await self.associado_repo.get_by_id(data.associado_id)
+            if not associado:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Associado não encontrado."
                 )
+            if associado.status != StatusAssociado.ATIVO:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Associado não pode reservar quadras. Status cadastral: {associado.status}."
+                )
+
+            # 2. Validação contra Inadimplência Financeira
+            faturas_vencidas = await self.fatura_repo.list_faturas(
+                associado_id=data.associado_id,
+                status=StatusFatura.VENCIDO
+            )
+            if faturas_vencidas:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Reserva bloqueada: associado possui mensalidade vencida em aberto."
+                )
+
+            # 3. Validação de Horário Futuro
+            agora = datetime.now(timezone.utc)
+            # Converte para timezone-aware se necessário
+            inicio = data.data_inicio if data.data_inicio.tzinfo else data.data_inicio.replace(tzinfo=timezone.utc)
+            fim = data.data_fim if data.data_fim.tzinfo else data.data_fim.replace(tzinfo=timezone.utc)
+
+            if inicio < agora:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Não é possível reservar horários retroativos no passado."
+                )
+
+            # 4. Teto de Reservas Ativas Simultâneas
+            reservas_ativas = await self.agendamento_repo.contar_reservas_ativas(
+                associado_id=data.associado_id,
+                a_partir_de=agora
+            )
+            teto = associado.limite_reservas_ativas or settings.LIMITE_RESERVAS_SIMULTANEAS_PADRAO
+            if reservas_ativas >= teto:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"Limite de reservas ativas atingido ({reservas_ativas}/{teto}). "
+                        "Conclua ou cancele um agendamento anterior para reservar novamente."
+                    )
+                )
+
+            # 5. Trava Atômica de Concorrência contra Double-Booking
+            conflito = await self.agendamento_repo.verificar_sobreposicao(
+                quadra=data.quadra,
+                data_inicio=inicio,
+                data_fim=fim,
+                for_update=True
+            )
+            if conflito:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Horário indisponível. Já existe uma reserva confirmada para este período na quadra selecionada."
+                )
+
+            agendamento = AgendamentoQuadra(
+                associado_id=data.associado_id,
+                quadra=data.quadra,
+                data_inicio=inicio,
+                data_fim=fim,
+                observacoes=data.observacoes,
+                status=StatusAgendamento.CONFIRMADO
             )
 
-        # 5. Trava Atômica de Concorrência contra Double-Booking
-        conflito = await self.agendamento_repo.verificar_sobreposicao(
-            quadra=data.quadra,
-            data_inicio=inicio,
-            data_fim=fim,
-            for_update=True
-        )
-        if conflito:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Horário indisponível. Já existe uma reserva confirmada para este período na quadra selecionada."
-            )
-
-        agendamento = AgendamentoQuadra(
-            associado_id=data.associado_id,
-            quadra=data.quadra,
-            data_inicio=inicio,
-            data_fim=fim,
-            observacoes=data.observacoes,
-            status=StatusAgendamento.CONFIRMADO
-        )
-
-        created = await self.agendamento_repo.create(agendamento)
-        await self.session.commit()
-        await self.session.refresh(created)
-        return created
+            created = await self.agendamento_repo.create(agendamento)
+            await self.session.commit()
+            await self.session.refresh(created)
+            return created
 
     async def cancel_agendamento(self, agendamento_id: uuid.UUID) -> AgendamentoQuadra:
         """

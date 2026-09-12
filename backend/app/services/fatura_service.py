@@ -13,6 +13,8 @@ from app.repositories.associado_repository import AssociadoRepository
 from app.repositories.fatura_repository import FaturaRepository
 from app.schemas.fatura import FaturaCreate
 from app.services.pix_gateway_service import MockPixGateway
+from app.services.whatsapp_service import WhatsAppMessageBuilder
+from app.services.whatsapp_queue_service import MessagePriority, get_global_whatsapp_queue
 
 
 class FaturaService:
@@ -151,10 +153,23 @@ class FaturaService:
         if associado and associado.status == StatusAssociado.INADIMPLENTE:
             associado.status = StatusAssociado.ATIVO
 
+        # 7. Disparo imediato de Recibo Digital e Confirmação de Catraca Liberada via WhatsApp
+        if associado and associado.whatsapp:
+            msg_recibo = WhatsAppMessageBuilder.build_pos_pagamento(
+                nome=associado.nome,
+                valor=fatura.valor_total,
+                referencia_mes=fatura.referencia_mes
+            )
+            fatura.notificado_pos_pagamento_em = datetime.now(timezone.utc)
+            await get_global_whatsapp_queue().enqueue(
+                phone=associado.whatsapp,
+                message=msg_recibo,
+                priority=MessagePriority.HIGH
+            )
+
         await self.session.commit()
 
-        # TODO(FASE-2-CATRACA): Sincronizar liberação imediata na catraca física
-        # TODO(FASE-4-WHATSAPP): Disparar recibo digital e mensagem de confirmação
+        # TODO(FASE-6-CATRACA): Sincronizar liberação imediata na catraca física
 
         return {
             "status": "success",

@@ -2,12 +2,14 @@
 Endpoints da API v1 para Gestão de Faturas, Mensalidades e Pix Dinâmico.
 """
 import uuid
+from datetime import date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.fatura import StatusFatura
-from app.schemas.fatura import FaturaCreate, FaturaResponse
+from app.schemas.fatura import BillingExecutionReport, FaturaCreate, FaturaResponse
+from app.services.billing_engine_service import BillingEngineService
 from app.services.fatura_service import FaturaService
 
 router = APIRouter()
@@ -45,6 +47,24 @@ async def create_fatura(
     return await service.create_fatura(data)
 
 
+@router.post("/executar-regua", response_model=BillingExecutionReport)
+async def executar_regua_cobranca(
+    data_referencia: Optional[date] = Query(
+        None,
+        description="Data de referência para disparo da régua (padrão: hoje)"
+    ),
+    db: AsyncSession = Depends(get_db)
+) -> BillingExecutionReport:
+    """
+    Executa sob demanda ou via scheduler a régua de cobrança diária:
+    D-3 (aviso amigável), D-0 (Pix Copia e Cola matinal),
+    D+3 (cobrança de atraso) e D+7 (alerta de bloqueio de catraca e transição para inadimplente).
+    Todas as mensagens são enfileiradas de forma segura com jitter anti-ban.
+    """
+    engine = BillingEngineService(session=db)
+    return await engine.processar_regua_diaria(data_referencia=data_referencia)
+
+
 @router.get("/{fatura_id}", response_model=FaturaResponse)
 async def get_fatura(
     fatura_id: uuid.UUID,
@@ -59,7 +79,7 @@ async def get_fatura(
 async def cancel_fatura(
     fatura_id: uuid.UUID,
     db: AsyncSession = Depends(get_db)
-) -> FaturaResponse:
+):
     """Cancela uma fatura que ainda esteja com status PENDENTE."""
     service = FaturaService(db)
     return await service.cancel_fatura(fatura_id)

@@ -112,6 +112,33 @@ class Fatura(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         comment="Payload JSON bruto retornado pelo gateway de pagamento"
     )
 
+    # Rastreabilidade e Idempotência da Régua de Cobrança (WhatsApp)
+    notificado_d_minus_3_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Data/hora do envio do aviso amigável D-3"
+    )
+    notificado_d_zero_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Data/hora do envio matinal do Pix Copia e Cola no dia do vencimento D-0"
+    )
+    notificado_d_plus_3_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Data/hora da notificação de atraso D+3"
+    )
+    notificado_d_plus_7_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Data/hora do alerta de bloqueio e transição para inadimplente D+7"
+    )
+    notificado_pos_pagamento_em: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Data/hora do envio de recibo e confirmação de catraca liberada"
+    )
+
     # Relacionamentos
     associado: Mapped["Associado"] = relationship("Associado", back_populates="faturas")
     convidados_faturados: Mapped[List["Convidado"]] = relationship(

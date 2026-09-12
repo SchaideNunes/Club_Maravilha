@@ -13,20 +13,30 @@ from app.core.database import async_engine
 from app.models.base import Base
 
 
+from app.jobs.billing_scheduler import start_scheduler_and_worker, stop_scheduler_and_worker
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Gerenciador de ciclo de vida da aplicação.
     No MVP, cria automaticamente as tabelas caso não existam (facilita setup de dev).
-    Em produção, o Alembic assume a execução das migrações.
+    Inicia o APScheduler e o consumidor anti-ban da fila de WhatsApp.
     """
     async with async_engine.begin() as conn:
         # Criação inicial de tabelas para dev/MVP
         await conn.run_sync(Base.metadata.create_all)
     
+    # Inicia scheduler e worker em segundo plano (exceto em modo de teste automatizado isolado)
+    if settings.ENVIRONMENT != "test":
+        start_scheduler_and_worker()
+
     yield
     
     # Finalização de recursos na desconexão
+    if settings.ENVIRONMENT != "test":
+        await stop_scheduler_and_worker()
+        
     await async_engine.dispose()
 
 

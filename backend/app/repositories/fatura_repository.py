@@ -2,8 +2,10 @@
 Repositório de dados para a entidade de Faturas / Mensalidades.
 """
 import uuid
+from datetime import date
 from typing import List, Optional
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.fatura import Fatura, StatusFatura
 
@@ -52,3 +54,26 @@ class FaturaRepository:
         await self.session.flush()
         await self.session.refresh(fatura)
         return fatura
+
+    async def get_faturas_para_regua(
+        self,
+        data_vencimento: date,
+        campo_notificacao: str
+    ) -> List[Fatura]:
+        """
+        Busca faturas pendentes com vencimento na data especificada e que ainda
+        não receberam o disparo da régua (campo de timestamp nulo).
+        Faz joinedload do associado para evitar N+1 queries.
+        """
+        col = getattr(Fatura, campo_notificacao)
+        query = (
+            select(Fatura)
+            .options(joinedload(Fatura.associado))
+            .where(
+                Fatura.status.in_([StatusFatura.PENDENTE, StatusFatura.VENCIDO]),
+                Fatura.data_vencimento == data_vencimento,
+                col.is_(None)
+            )
+        )
+        result = await self.session.execute(query)
+        return list(result.scalars().all())

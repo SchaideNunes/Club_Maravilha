@@ -53,11 +53,14 @@ class Settings(BaseSettings):
     PIX_CERTIFICATE_PATH: str = "/app/certs/pix_certificate.pem"
     PIX_WEBHOOK_SECRET: str = "mock_webhook_secret_dev"
 
-    # WhatsApp (Régua de Cobrança)
+    # WhatsApp (Régua de Cobrança & Fila Anti-Ban)
     WHATSAPP_PROVIDER: str = "EVOLUTION_API"
     WHATSAPP_API_URL: str = "http://localhost:8080"
     WHATSAPP_API_KEY: str = "mock_whatsapp_key"
     WHATSAPP_INSTANCE_NAME: str = "club_maravilha_instance"
+    WHATSAPP_QUEUE_ENABLED: bool = True
+    WHATSAPP_MIN_DELAY_SECONDS: float = 3.0
+    WHATSAPP_MAX_DELAY_SECONDS: float = 8.0
 
     # Catraca Facial
     TURNSTILE_HOST: str = "127.0.0.1"

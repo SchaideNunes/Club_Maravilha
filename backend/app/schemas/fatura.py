@@ -32,7 +32,23 @@ class FaturaResponse(FaturaBase):
     pix_copia_cola: Optional[str] = None
     pix_qr_code_url: Optional[str] = None
     metadata_webhook: Optional[Dict[str, Any]] = None
+    notificado_d_minus_3_em: Optional[datetime] = None
+    notificado_d_zero_em: Optional[datetime] = None
+    notificado_d_plus_3_em: Optional[datetime] = None
+    notificado_d_plus_7_em: Optional[datetime] = None
+    notificado_pos_pagamento_em: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class BillingExecutionReport(BaseModel):
+    data_referencia: date
+    d_minus_3_enviados: int = 0
+    d_zero_enviados: int = 0
+    d_plus_3_enviados: int = 0
+    d_plus_7_enviados: int = 0
+    inadimplentes_atualizados: int = 0
+    total_enfileirados: int = 0
+    erros: list[str] = []

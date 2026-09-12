@@ -3,6 +3,7 @@ Serviço de Negócio para Faturas, Cobrança Pix e Liquidação Instantânea via
 """
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Dict, List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,7 @@ from app.core.config import settings
 from app.models.associado import StatusAssociado
 from app.models.fatura import Fatura, StatusFatura
 from app.repositories.associado_repository import AssociadoRepository
+from app.repositories.convidado_repository import ConvidadoRepository
 from app.repositories.fatura_repository import FaturaRepository
 from app.schemas.fatura import FaturaCreate
 from app.services.pix_gateway_service import MockPixGateway
@@ -58,10 +60,19 @@ class FaturaService:
                 detail="Associado não encontrado para emissão de fatura."
             )
 
-        # Gera Pix Dinâmico no Gateway
+        # Agrega automaticamente convidados excedentes pendentes de faturamento
+        convidado_repo = ConvidadoRepository(self.session)
+        excedentes = await convidado_repo.get_excedentes_nao_faturados(data.associado_id)
+        valor_excedentes = data.valor_convidados_excedentes
+        if excedentes and valor_excedentes == Decimal("0.00"):
+            valor_excedentes = sum(c.valor_cobrado for c in excedentes)
+
+        valor_total = data.valor_base + valor_excedentes - data.valor_desconto
+
+        # Gera Pix Dinâmico no Gateway com valor total consolidado
         pix_charge = self.pix_gateway.create_dynamic_pix_charge(
             fatura_id=str(uuid.uuid4()),
-            valor=data.valor_total,
+            valor=valor_total,
             referencia_mes=data.referencia_mes,
             nome_associado=associado.nome,
             cpf_associado=associado.cpf
@@ -71,9 +82,9 @@ class FaturaService:
             associado_id=data.associado_id,
             referencia_mes=data.referencia_mes,
             valor_base=data.valor_base,
-            valor_convidados_excedentes=data.valor_convidados_excedentes,
+            valor_convidados_excedentes=valor_excedentes,
             valor_desconto=data.valor_desconto,
-            valor_total=data.valor_total,
+            valor_total=valor_total,
             data_vencimento=data.data_vencimento,
             forma_pagamento=data.forma_pagamento,
             status=StatusFatura.PENDENTE,
@@ -83,6 +94,12 @@ class FaturaService:
         )
 
         created = await self.fatura_repo.create(fatura)
+
+        # Vincula os convites excedentes faturados a esta fatura
+        if excedentes:
+            for convite in excedentes:
+                convite.fatura_agregada_id = created.id
+
         await self.session.commit()
         await self.session.refresh(created)
         return created

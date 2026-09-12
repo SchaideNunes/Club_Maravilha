@@ -32,3 +32,24 @@ class ConvidadoResponse(ConvidadoBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class QuotaConvidadosResponse(BaseModel):
+    associado_id: uuid.UUID
+    mes_referencia: str
+    franquia_total: int
+    utilizados: int
+    restantes: int
+    excedentes_emitidos: int
+    valor_unitario_excedente: Decimal
+
+
+class ConvidadoValidateQRRequest(BaseModel):
+    token: str = Field(..., min_length=10, max_length=64, description="Token de 64 caracteres lido do QR Code")
+    data_leitura: Optional[date] = Field(None, description="Data da leitura (padrão: hoje)")
+
+
+class ConvidadoValidateQRResponse(BaseModel):
+    valido: bool
+    mensagem: str
+    convidado: Optional[ConvidadoResponse] = None

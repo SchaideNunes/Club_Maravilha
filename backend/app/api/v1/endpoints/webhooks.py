@@ -1,14 +1,11 @@
 """
-Endpoint de Webhook para confirmação instantânea de pagamentos Pix (< 2-3s).
+Endpoint de Webhook para confirmação instantânea de pagamentos Pix (< 2s).
 """
-from datetime import datetime, timezone
-from typing import Any, Dict
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from typing import Any, Dict, Optional
+from fastapi import APIRouter, Depends, Header, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.models.associado import Associado, StatusAssociado
-from app.models.fatura import Fatura, StatusFatura
+from app.services.fatura_service import FaturaService
 
 router = APIRouter()
 
@@ -17,46 +14,15 @@ router = APIRouter()
 async def webhook_pix_payment(
     request: Request,
     payload: Dict[str, Any],
+    x_webhook_secret: Optional[str] = Header(None, alias="X-Webhook-Secret"),
+    token: Optional[str] = Query(None, description="Token de autenticação alternativo via query string"),
     db: AsyncSession = Depends(get_db)
-) -> Dict[str, str]:
+) -> Dict[str, Any]:
     """
     Recebe notificação instantânea do gateway Pix (Efí / Asaas / Mercado Pago).
-    Atualiza a fatura para PAGO em menos de 2 segundos, reativa associado se inadimplente
-    e agenda disparo de recibo pelo WhatsApp.
+    Valida a assinatura de segurança, atualiza a fatura para PAGO em menos de 2 segundos
+    e reativa o associado caso estivesse com status INADIMPLENTE.
     """
-    # TODO(FASE-3-PIX): Validar assinatura criptográfica HMAC nos headers do request
-    
-    # Exemplo genérico de extração de txid ou pix_id do payload
-    txid = payload.get("txid") or payload.get("pix", [{}])[0].get("txid")
-    if not txid:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Payload de webhook inválido: txid ausente."
-        )
-
-    # Localiza a fatura vinculada
-    result = await db.execute(select(Fatura).where(Fatura.txid == txid))
-    fatura = result.scalar_one_or_none()
-    if not fatura:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Fatura com txid {txid} não encontrada."
-        )
-
-    # Atualiza status da fatura
-    fatura.status = StatusFatura.PAGO
-    fatura.data_pagamento = datetime.now(timezone.utc)
-    fatura.metadata_webhook = payload
-    
-    # Se o associado estava com status INADIMPLENTE, reativa para ATIVO
-    associado_res = await db.execute(select(Associado).where(Associado.id == fatura.associado_id))
-    associado = associado_res.scalar_one_or_none()
-    if associado and associado.status == StatusAssociado.INADIMPLENTE:
-        associado.status = StatusAssociado.ATIVO
-
-    await db.commit()
-
-    # TODO(FASE-2-CATRACA): Enviar comando de sincronização imediata para a catraca facial
-    # TODO(FASE-4-WHATSAPP): Enviar recibo automático e aviso de liberação no WhatsApp do associado
-
-    return {"status": "success", "message": "Fatura liquidada e associado liberado com sucesso."}
+    secret_token = x_webhook_secret or token
+    service = FaturaService(db)
+    return await service.process_pix_webhook(payload, secret_token)

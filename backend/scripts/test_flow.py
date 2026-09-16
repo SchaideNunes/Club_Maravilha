@@ -59,6 +59,7 @@ async def run_test_flow(nome: str, whatsapp: str, simular_pagamento: bool) -> No
             socio.nome = nome
             socio.whatsapp = whatsapp
             socio.status = StatusAssociado.ATIVO
+            socio.facial_id = socio.facial_id or "FACE_TEST_DEMO"
             await session.commit()
             print(f"   ℹ️ Associado de teste reutilizado! ID: {socio.id}")
 

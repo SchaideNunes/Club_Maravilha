@@ -3,9 +3,10 @@ Endpoints da API v1 para Gestão de Faturas, Mensalidades e Pix Dinâmico.
 """
 import uuid
 from datetime import date
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.fatura import StatusFatura
 from app.schemas.fatura import BillingExecutionReport, FaturaCreate, FaturaResponse
@@ -83,3 +84,27 @@ async def cancel_fatura(
     """Cancela uma fatura que ainda esteja com status PENDENTE."""
     service = FaturaService(db)
     return await service.cancel_fatura(fatura_id)
+
+
+@router.post("/{fatura_id}/simular-pagamento", response_model=Dict[str, Any])
+async def simular_pagamento_pix(
+    fatura_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Simula a liquidação instantânea de uma fatura Pix em ambiente de teste ou homologação.
+    Dispara o fluxo real de produção:
+    1. Baixa da fatura no PostgreSQL para status PAGO.
+    2. Gravação da data/hora exata do pagamento.
+    3. Reativação automática do associado (se inadimplente -> ATIVO).
+    4. Enfileiramento com PRIORIDADE MÁXIMA do recibo digital via WhatsApp.
+    5. Disparo de sincronização imediata com a catraca física.
+    """
+    service = FaturaService(db)
+    fatura = await service.get_by_id(fatura_id)
+    payload = {
+        "evento": "pix_recebido_simulado",
+        "txid": fatura.txid,
+        "valor": str(fatura.valor_total),
+    }
+    return await service.process_pix_webhook(payload, secret_token=settings.PIX_WEBHOOK_SECRET)

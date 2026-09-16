@@ -87,6 +87,21 @@ class WhatsAppProvider(ABC):
         """Envia mensagem de texto para o número especificado."""
         pass
 
+    @abstractmethod
+    async def get_connection_status(self) -> Dict[str, Any]:
+        """Consulta o estado da conexão da instância com o WhatsApp."""
+        pass
+
+    @abstractmethod
+    async def create_instance_if_not_exists(self) -> Dict[str, Any]:
+        """Garante que a instância esteja criada na API."""
+        pass
+
+    @abstractmethod
+    async def get_qr_code(self) -> Dict[str, Any]:
+        """Obtém o QR Code para pareamento do WhatsApp."""
+        pass
+
 
 class MockWhatsAppProvider(WhatsAppProvider):
     """Provedor em memória para testes unitários e integração."""
@@ -105,6 +120,28 @@ class MockWhatsAppProvider(WhatsAppProvider):
         self.sent_messages.append(record)
         logger.info(f"[MockWhatsApp] Mensagem simulada enviada para {normalized_phone}: {message[:60]}...")
         return record
+
+    async def get_connection_status(self) -> Dict[str, Any]:
+        return {
+            "instance": {
+                "instanceName": "mock_instance",
+                "state": "open"
+            }
+        }
+
+    async def create_instance_if_not_exists(self) -> Dict[str, Any]:
+        return {
+            "instance": {
+                "instanceName": "mock_instance",
+                "status": "created"
+            }
+        }
+
+    async def get_qr_code(self) -> Dict[str, Any]:
+        return {
+            "base64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+            "code": "mock_pairing_code"
+        }
 
 
 class EvolutionApiWhatsAppProvider(WhatsAppProvider):
@@ -152,6 +189,81 @@ class EvolutionApiWhatsAppProvider(WhatsAppProvider):
                     "provider": "EvolutionApiWhatsAppProvider",
                     "phone": normalized_phone,
                     "error": str(err)
+                }
+
+    async def get_connection_status(self) -> Dict[str, Any]:
+        """Consulta o estado de conexão da instância."""
+        url = f"{self.api_url}/instance/connectionState/{self.instance_name}"
+        headers = {"apikey": self.api_key}
+
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            try:
+                response = await client.get(url, headers=headers)
+                if response.status_code == 404:
+                    return {
+                        "instance": {
+                            "instanceName": self.instance_name,
+                            "state": "not_created"
+                        }
+                    }
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPError as err:
+                logger.warning(f"[EvolutionAPI] Falha ao verificar status da instância: {err}")
+                return {
+                    "instance": {
+                        "instanceName": self.instance_name,
+                        "state": "disconnected",
+                        "error": str(err)
+                    }
+                }
+
+    async def create_instance_if_not_exists(self) -> Dict[str, Any]:
+        """Cria a instância caso não exista."""
+        url = f"{self.api_url}/instance/create"
+        headers = {
+            "apikey": self.api_key,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "instanceName": self.instance_name,
+            "qrcode": True,
+            "integration": "WHATSAPP-BAILEYS"
+        }
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            try:
+                response = await client.post(url, headers=headers, json=payload)
+                if response.status_code in (200, 201):
+                    return response.json()
+                elif response.status_code in (400, 409):
+                    # Instância já existente
+                    return {"status": "exists", "instanceName": self.instance_name}
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPError as err:
+                logger.warning(f"[EvolutionAPI] Instância já existente ou retorno: {err}")
+                return {"status": "exists_or_error", "error": str(err)}
+
+    async def get_qr_code(self) -> Dict[str, Any]:
+        """Gera ou obtém o QR Code da instância para leitura."""
+        # Garante criação primeiro
+        await self.create_instance_if_not_exists()
+
+        url = f"{self.api_url}/instance/connect/{self.instance_name}"
+        headers = {"apikey": self.api_key}
+
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            try:
+                response = await client.get(url, headers=headers)
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPError as err:
+                logger.error(f"[EvolutionAPI] Erro ao obter QR Code: {err}")
+                return {
+                    "error": str(err),
+                    "base64": None,
+                    "code": None
                 }
 
 

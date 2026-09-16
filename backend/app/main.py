@@ -24,6 +24,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Inicia o APScheduler e o consumidor anti-ban da fila de WhatsApp.
     """
     async with async_engine.begin() as conn:
+        if async_engine.dialect.name == "postgresql":
+            from sqlalchemy import text
+            await conn.execute(text("CREATE SCHEMA IF NOT EXISTS evolution;"))
         # Criação inicial de tabelas para dev/MVP
         await conn.run_sync(Base.metadata.create_all)
     

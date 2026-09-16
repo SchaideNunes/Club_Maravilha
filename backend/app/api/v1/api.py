@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     faturas,
     health,
     webhooks,
+    whatsapp,
 )
 
 api_router = APIRouter()
@@ -21,3 +22,5 @@ api_router.include_router(agendamentos.router, prefix="/agendamentos", tags=["Qu
 api_router.include_router(convidados.router, prefix="/convidados", tags=["Gestão de Convidados & Visitantes"])
 api_router.include_router(catraca.router, prefix="/catraca", tags=["Catraca Facial & Acesso"])
 api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks de Pagamento"])
+api_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["WhatsApp & Automação"])
+

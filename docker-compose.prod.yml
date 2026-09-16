@@ -46,6 +46,7 @@ services:
       DEBUG: "false"
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}@db:5432/${POSTGRES_DB:-club_maravilha}
       DATABASE_SYNC_URL: postgresql://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}@db:5432/${POSTGRES_DB:-club_maravilha}
+      WHATSAPP_API_URL: http://whatsapp:8080
     depends_on:
       db:
         condition: service_healthy
@@ -67,7 +68,32 @@ services:
       - club_network
 
   # ----------------------------------------------------------------------------
-  # [4] PROXY REVERSO NGINX (Ponto de Entrada Único - Portas 80 e 443)
+  # [4] EVOLUTION API (WhatsApp Gateway - Baileys)
+  # ----------------------------------------------------------------------------
+  whatsapp:
+    image: evoapicloud/evolution-api:latest
+    container_name: club_maravilha_whatsapp_prod
+    environment:
+      - SERVER_URL=http://localhost:8080
+      - SERVER_PORT=8080
+      - AUTHENTICATION_API_KEY=${WHATSAPP_API_KEY:-club_maravilha_secret_key_123}
+      - DATABASE_PROVIDER=postgresql
+      - DATABASE_CONNECTION_URI=postgresql://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}@db:5432/${POSTGRES_DB:-club_maravilha}?schema=evolution
+      - DATABASE_CONNECTION_CLIENT_NAME=club_maravilha_evolution_prod
+      - CACHE_REDIS_ENABLED=false
+      - LOG_LEVEL=ERROR,WARN
+      - DEL_INSTANCE=false
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - club_network
+
+  # ----------------------------------------------------------------------------
+  # [5] PROXY REVERSO NGINX (Ponto de Entrada Único - Portas 80 e 443)
   # ----------------------------------------------------------------------------
   nginx:
     image: nginx:1.25-alpine
@@ -81,6 +107,7 @@ services:
     depends_on:
       - frontend
       - backend
+      - whatsapp
     restart: always
     networks:
       - club_network
@@ -92,6 +119,8 @@ volumes:
   postgres_data:
     driver: local
   certbot_certs:
+    driver: local
+  evolution_instances:
     driver: local
 
 networks:

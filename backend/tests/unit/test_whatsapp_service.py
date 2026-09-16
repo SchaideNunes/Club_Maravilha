@@ -109,3 +109,65 @@ def test_get_whatsapp_provider_factory():
 
     provider_evo = get_whatsapp_provider("EVOLUTION_API")
     assert isinstance(provider_evo, EvolutionApiWhatsAppProvider)
+
+
+@pytest.mark.asyncio
+async def test_mock_whatsapp_provider_instance_and_qr():
+    provider = MockWhatsAppProvider()
+    status = await provider.get_connection_status()
+    assert status["instance"]["state"] == "open"
+
+    created = await provider.create_instance_if_not_exists()
+    assert created["instance"]["status"] == "created"
+
+    qr = await provider.get_qr_code()
+    assert "data:image/png;base64" in qr["base64"]
+
+
+@pytest.mark.asyncio
+async def test_evolution_api_provider_status_and_qr():
+    provider = EvolutionApiWhatsAppProvider(
+        api_url="http://evolution-api:8080",
+        api_key="secret_token_123",
+        instance_name="clube_instancia"
+    )
+
+    # 1. Connection Status
+    mock_status_response = httpx.Response(
+        200,
+        json={"instance": {"instanceName": "clube_instancia", "state": "open"}},
+        request=httpx.Request("GET", "http://test")
+    )
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get:
+        mock_get.return_value = mock_status_response
+        res = await provider.get_connection_status()
+        assert res["instance"]["state"] == "open"
+        mock_get.assert_called_once()
+        args, kwargs = mock_get.call_args
+        assert args[0] == "http://evolution-api:8080/instance/connectionState/clube_instancia"
+
+    # 2. Create Instance (Already Exists 409)
+    mock_create_response = httpx.Response(
+        409,
+        json={"error": "Instance already exists"},
+        request=httpx.Request("POST", "http://test")
+    )
+    with patch("httpx.AsyncClient.post", new_callable=AsyncMock) as mock_post:
+        mock_post.return_value = mock_create_response
+        res_create = await provider.create_instance_if_not_exists()
+        assert res_create["status"] == "exists"
+
+    # 3. QR Code Connect
+    mock_qr_response = httpx.Response(
+        200,
+        json={"base64": "data:image/png;base64,mockqr", "code": "code123"},
+        request=httpx.Request("GET", "http://test")
+    )
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock) as mock_get, \
+         patch.object(provider, "create_instance_if_not_exists", new_callable=AsyncMock) as mock_create:
+        mock_get.return_value = mock_qr_response
+        res_qr = await provider.get_qr_code()
+        assert res_qr["code"] == "code123"
+        assert res_qr["base64"] == "data:image/png;base64,mockqr"
+        mock_create.assert_called_once()
+

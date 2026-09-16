@@ -4,12 +4,13 @@
 
 @layer base {
   :root {
-    --color-primary: 22 163 74;
-    --color-primary-dark: 20 83 45;
+    --color-primary: 78 122 156;
+    --color-primary-dark: 31 51 71;
+    --color-accent-gold: 234 164 59;
   }
 
   body {
-    @apply bg-slate-950 text-slate-100 min-h-screen selection:bg-brand-500 selection:text-white;
+    @apply bg-[#F8FAFC] text-[#1F3347] min-h-screen selection:bg-amber-400 selection:text-slate-900 font-sans antialiased;
   }
 }
 

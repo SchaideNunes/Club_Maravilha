@@ -7,6 +7,17 @@ export default {
   theme: {
     extend: {
       colors: {
+        maravilha: {
+          blue: '#4E7A9C',
+          'blue-dark': '#3F6785',
+          dark: '#1F3347',
+          'dark-card': '#1B3B54',
+          gold: '#EAA43B',
+          'gold-hover': '#DF982D',
+          border: '#E2E8F0',
+          bg: '#F8FAFC',
+          muted: '#64748B'
+        },
         brand: {
           50: '#f0fdf4',
           100: '#dcfce7',

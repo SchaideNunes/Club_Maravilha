@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Navbar } from './components/layout/Navbar';
 import { HeroSection } from './components/landing/HeroSection';
-import { FacilitiesSection } from './components/landing/FacilitiesSection';
-import { TechnologySection } from './components/landing/TechnologySection';
+import { SportsProgrammingSection } from './components/landing/SportsProgrammingSection';
+import { LeisureProgrammingSection } from './components/landing/LeisureProgrammingSection';
+import { ExperiencesSection } from './components/landing/ExperiencesSection';
+import { AboutBannerSection } from './components/landing/AboutBannerSection';
 import { MemberPortalModal } from './components/portal/MemberPortalModal';
 import { Footer } from './components/layout/Footer';
 
@@ -10,8 +12,8 @@ export default function App() {
   const [isPortalOpen, setIsPortalOpen] = useState(false);
   const [selectedCourtForBooking, setSelectedCourtForBooking] = useState<string | undefined>(undefined);
 
-  const handleOpenPortal = (courtName?: string) => {
-    setSelectedCourtForBooking(courtName);
+  const handleOpenPortal = (courtOrEventName?: string) => {
+    setSelectedCourtForBooking(courtOrEventName);
     setIsPortalOpen(true);
   };
 
@@ -23,36 +25,49 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-amber-400 selection:text-slate-950">
-      {/* Header com Efeito Vidro & Menu Lateral 30% */}
+    <div className="min-h-screen bg-[#F8FAFC] text-[#1F3347] font-sans selection:bg-amber-400 selection:text-slate-900">
+      {/* 1. Header Oficial com Paleta Steel Blue (#4E7A9C) e Logo do Sol Dourado */}
       <Navbar 
         onOpenPortal={() => handleOpenPortal()}
         onNavigateSection={handleNavigateSection}
       />
 
-      {/* Hero Section Imersivo: Homepage.png + CLUB MARAVILHA em Destaque */}
+      {/* 2. Banner Hero Principal (Homepage.png) com Card Flutuante 'QUERO SER SÓCIO' */}
       <HeroSection 
         onOpenPortal={() => handleOpenPortal()}
-        onExploreFacilities={() => handleNavigateSection('facilities')}
+        onExploreProgramming={() => handleNavigateSection('programacao-esportes')}
       />
 
-      {/* Complexo Esportivo & Instalações: Image1.png + Quadras */}
-      <FacilitiesSection 
-        onSelectCourtForBooking={(courtName) => handleOpenPortal(courtName)}
+      {/* 3. Programação Esportes (Vôlei, Futsal com Badges de Data e Botões Saiba Mais) */}
+      <SportsProgrammingSection 
+        onSelectEvent={(eventTitle) => handleOpenPortal(eventTitle)}
+        onViewFullSchedule={() => handleNavigateSection('programacao-esportes')}
       />
 
-      {/* Tecnologia, Catraca Facial, Pix em 2s & Franquia de 8 Convidados */}
-      <TechnologySection 
-        onOpenPortal={() => handleOpenPortal()}
+      {/* 4. Programação Lazer (Shows: João Gomes, Calypso, Dorgival, Tarcísio) */}
+      <LeisureProgrammingSection 
+        onSelectShow={(showTitle) => handleOpenPortal(showTitle)}
+        onViewFullSchedule={() => handleNavigateSection('programacao-lazer')}
       />
 
-      {/* Rodapé do Clube */}
+      {/* 5. Seção de EXPERIÊNCIAS (3 Cards Azuis com Ícones de Halter, Apito, Óculos e Botões Dourados) */}
+      <ExperiencesSection 
+        onSelectExperience={(exp) => handleOpenPortal(exp)}
+        onViewFullSchedule={() => handleNavigateSection('programacao-esportes')}
+      />
+
+      {/* 6. Banner Institucional 'Tradição, esporte e convivência em um só lugar' (Família / Teofilândia) */}
+      <AboutBannerSection 
+        onExploreClub={() => handleOpenPortal()}
+      />
+
+      {/* 7. Rodapé Steel Blue (#4E7A9C) com Contatos de Teofilândia e Redes Sociais */}
       <Footer 
         onOpenPortal={() => handleOpenPortal()}
         onNavigateSection={handleNavigateSection}
       />
 
-      {/* Modal / Painel Interativo do Associado */}
+      {/* 8. Portal Interativo do Associado (Quadras, Pix e Convidados integrados à API) */}
       <MemberPortalModal
         isOpen={isPortalOpen}
         onClose={() => setIsPortalOpen(false)}

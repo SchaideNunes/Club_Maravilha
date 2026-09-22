@@ -66,6 +66,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: development
     container_name: club_maravilha_frontend
     command: npm run dev -- --host 0.0.0.0 --port 5173
     volumes:

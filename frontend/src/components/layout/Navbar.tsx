@@ -2,16 +2,39 @@ import React, { useState } from 'react';
 import { Menu, X, User, ChevronRight } from 'lucide-react';
 import { ClubeMaravilhaLogo } from '../common/ClubeMaravilhaLogo';
 
+export type PageRoute = 'home' | 'esportes' | 'cursos-esportivos' | 'lazer' | 'usuario';
+
 interface NavbarProps {
   onOpenPortal: () => void;
   onNavigateSection?: (sectionId: string) => void;
+  currentPage?: PageRoute;
+  onNavigatePage?: (page: PageRoute) => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenPortal, onNavigateSection }) => {
+export const Navbar: React.FC<NavbarProps> = ({
+  onOpenPortal,
+  onNavigateSection,
+  currentPage = 'home',
+  onNavigatePage
+}) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const handleLogoClick = () => {
+    if (onNavigatePage) {
+      onNavigatePage('home');
+    } else {
+      scrollTo('hero');
+    }
+  };
+
   const scrollTo = (id: string) => {
-    if (onNavigateSection) {
+    if (currentPage !== 'home' && onNavigatePage) {
+      onNavigatePage('home');
+      setTimeout(() => {
+        const element = document.getElementById(id);
+        if (element) element.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } else if (onNavigateSection) {
       onNavigateSection(id);
     } else {
       const element = document.getElementById(id);
@@ -28,8 +51,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPortal, onNavigateSection 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           {/* Brand Logo */}
           <button
-            onClick={() => scrollTo('hero')}
-            className="flex items-center space-x-2 focus:outline-none hover:opacity-95 transition-opacity"
+            onClick={handleLogoClick}
+            className="flex items-center space-x-2 focus:outline-none hover:opacity-95 transition-opacity cursor-pointer"
             aria-label="Clube Maravilha Início"
           >
             <ClubeMaravilhaLogo variant="light" size="md" />
@@ -38,15 +61,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPortal, onNavigateSection 
           {/* Desktop Right Actions */}
           <div className="hidden md:flex items-center space-x-6">
             <button
-              onClick={() => scrollTo('programacao-esportes')}
-              className="text-white text-sm font-medium hover:text-amber-200 transition-colors focus:outline-none"
+              onClick={() => {
+                if (currentPage === 'home') scrollTo('programacao-esportes');
+                else onNavigatePage?.('esportes');
+              }}
+              className="text-white text-sm font-medium hover:text-amber-200 transition-colors focus:outline-none cursor-pointer"
             >
               Programação
             </button>
 
             <button
-              onClick={onOpenPortal}
-              className="px-6 py-2.5 rounded-full bg-[#1F3347] hover:bg-[#162737] text-white text-sm font-medium tracking-wide shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 focus:outline-none"
+              onClick={() => onNavigatePage ? onNavigatePage('usuario') : onOpenPortal()}
+              className="px-6 py-2.5 rounded-full bg-[#1F3347] hover:bg-[#162737] text-white text-sm font-medium tracking-wide shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 focus:outline-none cursor-pointer"
             >
               Área do associado
             </button>
@@ -54,7 +80,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPortal, onNavigateSection 
             {/* Subtle Hamburger Menu for Additional Options */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="p-2 text-white hover:text-amber-200 focus:outline-none"
+              className="p-2 text-white hover:text-amber-200 focus:outline-none cursor-pointer"
               aria-label="Abrir Menu"
             >
               <Menu className="w-6 h-6" />
@@ -101,26 +127,45 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPortal, onNavigateSection 
                 </button>
               </div>
 
-              <nav className="mt-6 space-y-4">
+              <nav className="mt-6 space-y-3">
                 <button
-                  onClick={() => scrollTo('programacao-esportes')}
+                  onClick={() => {
+                    onNavigatePage ? onNavigatePage('home') : scrollTo('hero');
+                    setMobileMenuOpen(false);
+                  }}
                   className="w-full text-left py-2.5 text-sm font-medium flex items-center justify-between border-b border-white/10"
                 >
-                  <span>Programação Esportes</span>
+                  <span>Início</span>
                   <ChevronRight className="w-4 h-4 text-white/70" />
                 </button>
                 <button
-                  onClick={() => scrollTo('programacao-lazer')}
+                  onClick={() => {
+                    onNavigatePage ? onNavigatePage('esportes') : scrollTo('programacao-esportes');
+                    setMobileMenuOpen(false);
+                  }}
                   className="w-full text-left py-2.5 text-sm font-medium flex items-center justify-between border-b border-white/10"
                 >
-                  <span>Programação Lazer</span>
+                  <span>Esportes</span>
                   <ChevronRight className="w-4 h-4 text-white/70" />
                 </button>
                 <button
-                  onClick={() => scrollTo('experiencias')}
+                  onClick={() => {
+                    onNavigatePage ? onNavigatePage('cursos-esportivos') : scrollTo('experiencias');
+                    setMobileMenuOpen(false);
+                  }}
                   className="w-full text-left py-2.5 text-sm font-medium flex items-center justify-between border-b border-white/10"
                 >
-                  <span>Experiências</span>
+                  <span>Cursos Esportivos</span>
+                  <ChevronRight className="w-4 h-4 text-white/70" />
+                </button>
+                <button
+                  onClick={() => {
+                    onNavigatePage ? onNavigatePage('lazer') : scrollTo('programacao-lazer');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full text-left py-2.5 text-sm font-medium flex items-center justify-between border-b border-white/10"
+                >
+                  <span>Lazer</span>
                   <ChevronRight className="w-4 h-4 text-white/70" />
                 </button>
                 <button
@@ -137,9 +182,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenPortal, onNavigateSection 
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  onOpenPortal();
+                  if (onNavigatePage) onNavigatePage('usuario');
+                  else onOpenPortal();
                 }}
-                className="w-full py-3 rounded-full bg-[#1F3347] hover:bg-[#162737] text-white font-bold text-sm tracking-wide shadow-lg flex items-center justify-center space-x-2"
+                className="w-full py-3 rounded-full bg-[#1F3347] hover:bg-[#162737] text-white font-bold text-sm tracking-wide shadow-lg flex items-center justify-center space-x-2 cursor-pointer"
               >
                 <User className="w-4 h-4" />
                 <span>Acessar Área do Associado</span>

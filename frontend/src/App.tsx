@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Navbar } from './components/layout/Navbar';
+import { useState, useEffect } from 'react';
+import { Navbar, PageRoute } from './components/layout/Navbar';
 import { HeroSection } from './components/landing/HeroSection';
 import { SportsProgrammingSection } from './components/landing/SportsProgrammingSection';
 import { LeisureProgrammingSection } from './components/landing/LeisureProgrammingSection';
@@ -8,9 +8,49 @@ import { AboutBannerSection } from './components/landing/AboutBannerSection';
 import { MemberPortalModal } from './components/portal/MemberPortalModal';
 import { Footer } from './components/layout/Footer';
 
+// Subpages
+import { SportsPage } from './components/sports/SportsPage';
+import { CoursesPage } from './components/sports/CoursesPage';
+import { LeisurePage } from './components/leisure/LeisurePage';
+import { UserDashboardPage } from './components/user/UserDashboardPage';
+
 export default function App() {
+  const [currentPage, setCurrentPage] = useState<PageRoute>('home');
   const [isPortalOpen, setIsPortalOpen] = useState(false);
   const [selectedCourtForBooking, setSelectedCourtForBooking] = useState<string | undefined>(undefined);
+
+  // Synchronize route with URL hash on load and hashchange
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.toLowerCase();
+      if (hash.includes('esporte')) {
+        setCurrentPage('esportes');
+      } else if (hash.includes('curso') || hash.includes('educacao')) {
+        setCurrentPage('cursos-esportivos');
+      } else if (hash.includes('lazer')) {
+        setCurrentPage('lazer');
+      } else if (hash.includes('usuario') || hash.includes('associado')) {
+        setCurrentPage('usuario');
+      } else {
+        setCurrentPage('home');
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    handleHashChange();
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  const navigateToPage = (page: PageRoute) => {
+    setCurrentPage(page);
+    if (page === 'home') {
+      window.location.hash = '#/';
+    } else {
+      window.location.hash = `#/${page}`;
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleOpenPortal = (courtOrEventName?: string) => {
     setSelectedCourtForBooking(courtOrEventName);
@@ -18,56 +58,106 @@ export default function App() {
   };
 
   const handleNavigateSection = (sectionId: string) => {
-    const el = document.getElementById(sectionId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
+    if (currentPage !== 'home') {
+      navigateToPage('home');
+      setTimeout(() => {
+        const el = document.getElementById(sectionId);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    } else {
+      const el = document.getElementById(sectionId);
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleSelectExperience = (experienceName: string) => {
+    if (experienceName.toLowerCase().includes('curso')) {
+      navigateToPage('cursos-esportivos');
+    } else if (experienceName.toLowerCase().includes('esporte')) {
+      navigateToPage('esportes');
+    } else if (experienceName.toLowerCase().includes('lazer')) {
+      navigateToPage('lazer');
+    } else {
+      handleOpenPortal(experienceName);
     }
   };
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#1F3347] font-sans selection:bg-amber-400 selection:text-slate-900">
-      {/* 1. Header Oficial com Paleta Steel Blue (#4E7A9C) e Logo do Sol Dourado */}
-      <Navbar 
-        onOpenPortal={() => handleOpenPortal()}
-        onNavigateSection={handleNavigateSection}
-      />
+      {/* Rota Especial: Página do Usuário / Dashboard do Associado */}
+      {currentPage === 'usuario' ? (
+        <UserDashboardPage
+          onBackToHome={() => navigateToPage('home')}
+          onOpenBookingModal={(court) => handleOpenPortal(court)}
+          onOpenPaymentModal={() => handleOpenPortal()}
+        />
+      ) : (
+        <>
+          {/* Header Oficial com Steel Blue (#4E7A9C) e Logo */}
+          <Navbar
+            currentPage={currentPage}
+            onNavigatePage={navigateToPage}
+            onOpenPortal={() => handleOpenPortal()}
+            onNavigateSection={handleNavigateSection}
+          />
 
-      {/* 2. Banner Hero Principal (Homepage.png) com Card Flutuante 'QUERO SER SÓCIO' */}
-      <HeroSection 
-        onOpenPortal={() => handleOpenPortal()}
-        onExploreProgramming={() => handleNavigateSection('programacao-esportes')}
-      />
+          {/* Rota 1: Home / Landing Page Principal */}
+          {currentPage === 'home' && (
+            <main>
+              <HeroSection
+                onOpenPortal={() => handleOpenPortal()}
+                onExploreProgramming={() => handleNavigateSection('programacao-esportes')}
+              />
 
-      {/* 3. Programação Esportes (Vôlei, Futsal com Badges de Data e Botões Saiba Mais) */}
-      <SportsProgrammingSection 
-        onSelectEvent={(eventTitle) => handleOpenPortal(eventTitle)}
-        onViewFullSchedule={() => handleNavigateSection('programacao-esportes')}
-      />
+              <SportsProgrammingSection
+                onSelectEvent={(eventTitle) => handleOpenPortal(eventTitle)}
+                onViewFullSchedule={() => navigateToPage('esportes')}
+              />
 
-      {/* 4. Programação Lazer (Shows: João Gomes, Calypso, Dorgival, Tarcísio) */}
-      <LeisureProgrammingSection 
-        onSelectShow={(showTitle) => handleOpenPortal(showTitle)}
-        onViewFullSchedule={() => handleNavigateSection('programacao-lazer')}
-      />
+              <LeisureProgrammingSection
+                onSelectShow={(showTitle) => handleOpenPortal(showTitle)}
+                onViewFullSchedule={() => navigateToPage('lazer')}
+              />
 
-      {/* 5. Seção de EXPERIÊNCIAS (3 Cards Azuis com Ícones de Halter, Apito, Óculos e Botões Dourados) */}
-      <ExperiencesSection 
-        onSelectExperience={(exp) => handleOpenPortal(exp)}
-        onViewFullSchedule={() => handleNavigateSection('programacao-esportes')}
-      />
+              <ExperiencesSection
+                onSelectExperience={handleSelectExperience}
+                onViewFullSchedule={() => navigateToPage('esportes')}
+              />
 
-      {/* 6. Banner Institucional 'Tradição, esporte e convivência em um só lugar' (Família / Teofilândia) */}
-      <AboutBannerSection 
-        onExploreClub={() => handleOpenPortal()}
-      />
+              <AboutBannerSection onExploreClub={() => handleOpenPortal()} />
+            </main>
+          )}
 
-      {/* 7. Rodapé Steel Blue (#4E7A9C) com Contatos de Teofilândia e Redes Sociais */}
-      <Footer 
-        onOpenPortal={() => handleOpenPortal()}
-        onNavigateSection={handleNavigateSection}
-      />
+          {/* Rota 2: Página de Esportes */}
+          {currentPage === 'esportes' && (
+            <main>
+              <SportsPage onOpenPortal={(court) => handleOpenPortal(court)} />
+            </main>
+          )}
 
-      {/* 8. Portal Interativo do Associado (Quadras, Pix e Convidados integrados à API) */}
+          {/* Rota 3: Página de Cursos Esportivos / Educação */}
+          {currentPage === 'cursos-esportivos' && (
+            <main>
+              <CoursesPage onOpenPortal={(cls) => handleOpenPortal(cls)} />
+            </main>
+          )}
+
+          {/* Rota 4: Página de Lazer */}
+          {currentPage === 'lazer' && (
+            <main>
+              <LeisurePage onOpenPortal={(show) => handleOpenPortal(show)} />
+            </main>
+          )}
+
+          {/* Rodapé Oficial Steel Blue (#4E7A9C) */}
+          <Footer
+            onOpenPortal={() => handleOpenPortal()}
+            onNavigateSection={handleNavigateSection}
+          />
+        </>
+      )}
+
+      {/* Modal Interativo do Associado (Quadras, Pix e Convidados integrados à API) */}
       <MemberPortalModal
         isOpen={isPortalOpen}
         onClose={() => setIsPortalOpen(false)}
@@ -76,3 +166,4 @@ export default function App() {
     </div>
   );
 }
+

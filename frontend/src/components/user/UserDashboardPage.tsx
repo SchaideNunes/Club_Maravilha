@@ -248,48 +248,52 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
               </h2>
             </div>
 
-            {/* 3 Show Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            {/* 3 Show Cards matching Figma Frame 60 (gap: 16px) */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {highlightShows.map((show) => (
                 <div
                   key={show.id}
-                  className="bg-white rounded-2xl overflow-hidden border border-slate-200/80 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between"
+                  className="bg-white rounded-[32px] border border-black/30 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between"
                 >
-                  <div className="relative h-44 w-full overflow-hidden bg-slate-100">
+                  <div className="relative h-[200px] w-full overflow-hidden bg-[#0C1014]">
                     <img
                       src={show.image}
                       alt={show.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     />
-                    <div className="absolute top-3 left-3 bg-[#1F3347]/95 backdrop-blur-sm text-white px-2.5 py-1.5 rounded-lg flex flex-col items-center shadow-md">
-                      <span className="text-base font-bold leading-none text-amber-400">
+                    <div className="absolute top-[102px] left-[24px] w-[65px] h-[74px] bg-[#2B3E4E] border border-white rounded-[16px] flex flex-col items-center justify-center shadow-lg pointer-events-none">
+                      <span className="text-[20px] font-bold leading-6 text-white text-center font-sans">
                         {show.day}
                       </span>
-                      <span className="text-[10px] font-semibold tracking-wider text-slate-200">
+                      <span className="text-[20px] font-bold leading-6 text-white text-center font-sans">
                         {show.month}
                       </span>
                     </div>
                   </div>
 
-                  <div className="p-4">
-                    <span className="inline-block text-[10px] font-bold tracking-widest text-slate-400 uppercase mb-1">
-                      {show.tag}
-                    </span>
-                    <h3 className="font-bold text-[#1F3347] text-base mb-2">
-                      {show.title}
-                    </h3>
-                    <div className="space-y-1 mb-4 text-xs text-slate-500">
-                      <p>{show.court}</p>
-                      <p>{show.time}</p>
+                  <div className="p-4 flex-1 flex flex-col justify-between gap-4">
+                    <div className="flex flex-col gap-2">
+                      <span className="text-[20px] font-bold leading-6 text-[#24537A] font-sans">
+                        {show.tag}
+                      </span>
+                      <h3 className="text-[24px] font-bold leading-7 text-[#1B3D5A] font-sans">
+                        {show.title}
+                      </h3>
+                      <div className="flex flex-col gap-2 pt-1 text-[18px] font-medium text-[rgba(36,83,122,0.8)] font-sans">
+                        <p>{show.court}</p>
+                        <p>{show.time}</p>
+                      </div>
                     </div>
 
                     <button
                       onClick={() => onOpenBookingModal(`Ingresso Show: ${show.title}`)}
-                      className="w-full py-2.5 rounded-lg bg-[#1F3347] hover:bg-[#162737] text-white text-xs font-semibold tracking-wide flex items-center justify-center space-x-2 transition-colors shadow-xs"
+                      className="w-full h-[48px] rounded-[8px] bg-[#2B3E4E] hover:bg-[#202e3b] text-white flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm"
                     >
-                      <Ticket className="w-3.5 h-3.5 text-amber-400" />
-                      <span>Saiba mais</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <Ticket className="w-7 h-7 text-white shrink-0" />
+                      <span className="text-[22px] font-normal leading-7 text-white font-sans">
+                        Saiba mais
+                      </span>
+                      <ArrowRight className="w-6 h-6 text-white shrink-0" />
                     </button>
                   </div>
                 </div>

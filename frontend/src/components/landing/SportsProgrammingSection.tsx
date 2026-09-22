@@ -68,57 +68,63 @@ export const SportsProgrammingSection: React.FC<SportsProgrammingSectionProps> =
         </button>
       </div>
 
-      {/* 4 Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* 4 Sports Cards Grid matching Figma Frame 60 (gap: 16px) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {sportsEvents.map((event) => (
           <div
             key={event.id}
-            className="bg-white rounded-2xl border border-slate-200/80 overflow-hidden shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col"
+            className="bg-white rounded-[32px] border border-black/30 overflow-hidden shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between"
           >
-            {/* Card Image Header with Overlay Date Badge */}
-            <div className="relative h-44 w-full overflow-hidden bg-slate-100">
+            {/* Top Image Container (Frame 56: h: 200px, bg: #0C1014) */}
+            <div className="relative h-[200px] w-full overflow-hidden bg-[#0C1014]">
               <img
                 src={event.image}
                 alt={event.title}
-                className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-300"
+                className="w-full h-full object-cover transform hover:scale-105 transition-transform duration-500"
               />
 
-              {/* Date Badge in Top Left */}
-              <div className="absolute top-3 left-3 bg-[#1F3347] text-white rounded-xl px-2.5 py-1.5 text-center shadow-md min-w-[42px]">
-                <div className="text-sm font-black leading-none">{event.day}</div>
-                <div className="text-[9px] font-semibold tracking-wider text-amber-200 uppercase mt-0.5">
+              {/* Date Badge (Frame 113: w: 65px, h: 74px, left: 24.5px, top: 102.5px, bg: #2B3E4E, border: 1px solid #FFFFFF, rounded: 16px) */}
+              <div className="absolute top-[102px] left-[24px] w-[65px] h-[74px] bg-[#2B3E4E] border border-white rounded-[16px] flex flex-col items-center justify-center shadow-lg pointer-events-none">
+                <span className="text-[20px] font-bold leading-6 text-white text-center font-sans">
+                  {event.day}
+                </span>
+                <span className="text-[20px] font-bold leading-6 text-white text-center font-sans">
                   {event.month}
-                </div>
+                </span>
               </div>
             </div>
 
-            {/* Card Body */}
-            <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-base font-bold text-[#1F3347] leading-tight">
+            {/* Card Body (Frame 57: padding: 16px, gap: 16px) */}
+            <div className="p-4 flex-1 flex flex-col justify-between gap-4">
+              <div className="flex flex-col gap-2">
+                {/* Event Title: (font-bold 24px, #1B3D5A) */}
+                <h3 className="text-[24px] font-bold leading-7 text-[#1B3D5A] font-sans">
                   {event.title}
                 </h3>
 
-                <div className="space-y-1 text-xs text-slate-500">
-                  <div className="flex items-center space-x-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>{event.location}</span>
+                {/* Info Rows (Frame 116 & 115: font-medium 18px, rgba(36, 83, 122, 0.8)) */}
+                <div className="flex flex-col gap-2 pt-1 text-[18px] font-medium text-[rgba(36,83,122,0.8)] font-sans">
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-6 h-6 text-[rgba(36,83,122,0.8)] shrink-0" />
+                    <span className="leading-snug">{event.location}</span>
                   </div>
-                  <div className="flex items-center space-x-1.5">
-                    <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    <span>{event.time}</span>
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-6 h-6 text-[rgba(36,83,122,0.8)] shrink-0" />
+                    <span className="leading-snug">{event.time}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Action Button */}
+              {/* Action Button (Frame 49: h: 48px, bg: #2B3E4E, rounded: 8px, padding: 8px 16px, gap: 8px) */}
               <button
                 onClick={() => onSelectEvent?.(event.title)}
-                className="w-full py-2 px-3 rounded-lg bg-[#1F3347] hover:bg-[#162737] text-white text-xs font-semibold flex items-center justify-center space-x-2 transition-colors focus:outline-none"
+                className="w-full h-[48px] rounded-[8px] bg-[#2B3E4E] hover:bg-[#202e3b] text-white flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-sm"
               >
-                <Ticket className="w-3.5 h-3.5 text-amber-300" />
-                <span>Saiba mais</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                <Ticket className="w-7 h-7 text-white shrink-0" />
+                <span className="text-[22px] font-normal leading-7 text-white font-sans">
+                  Saiba mais
+                </span>
+                <ArrowRight className="w-6 h-6 text-white shrink-0" />
               </button>
             </div>
           </div>

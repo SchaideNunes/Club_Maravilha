@@ -105,8 +105,8 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between">
       {/* 1. Header do Portal com Navegação e Perfil */}
-      <header className="sticky top-0 z-40 bg-[#4E7A9C] shadow-md transition-colors duration-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-xs border-b border-slate-200/80 transition-colors duration-200">
+        <div className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 h-20 flex items-center justify-between">
           {/* Logo e Botão Voltar */}
           <div className="flex items-center space-x-4 sm:space-x-6">
             <button
@@ -114,14 +114,14 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
               className="flex items-center space-x-2 focus:outline-none hover:opacity-95 transition-opacity cursor-pointer"
               aria-label="Clube Maravilha Início"
             >
-              <ClubeMaravilhaLogo variant="light" size="md" />
+              <ClubeMaravilhaLogo variant="default" size="md" />
             </button>
 
             <button
               onClick={onBackToHome}
-              className="hidden lg:flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all cursor-pointer"
+              className="hidden lg:flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[#1F3347] text-xs font-semibold transition-all cursor-pointer"
             >
-              <ArrowLeft className="w-3.5 h-3.5" />
+              <ArrowLeft className="w-3.5 h-3.5 text-slate-500" />
               <span>Voltar ao Portal</span>
             </button>
           </div>
@@ -131,28 +131,28 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
             {/* Chip de Perfil do Sócio */}
             <div
               onClick={() => setCurrentTab('carteirinha')}
-              className="flex items-center space-x-2.5 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white cursor-pointer transition-colors shadow-xs"
+              className="flex items-center space-x-2.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-[#1F3347] cursor-pointer transition-colors shadow-xs"
               title="Clique para ver sua Carteirinha Digital"
             >
               <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-900 font-black flex items-center justify-center text-xs shadow-sm">
                 SN
               </div>
               <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-bold leading-tight tracking-wide">
+                <span className="text-xs font-bold leading-tight tracking-wide text-[#1B3B54]">
                   Schaide Nunes
                 </span>
-                <span className="text-[10px] text-emerald-300 font-semibold flex items-center space-x-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="text-[10px] text-emerald-700 font-semibold flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                   <span>Catraca Liberada</span>
                 </span>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-white/80 hidden sm:block" />
+              <ChevronDown className="w-3.5 h-3.5 text-slate-500 hidden sm:block" />
             </div>
 
             {/* Botão Menu Hamburguer */}
             <button
               onClick={() => setMenuOpen(true)}
-              className="p-2 rounded-xl text-white hover:text-amber-200 hover:bg-white/10 focus:outline-none cursor-pointer transition-colors"
+              className="p-2 rounded-xl text-[#1F3347] hover:text-[#4E7A9C] hover:bg-slate-100 focus:outline-none cursor-pointer transition-colors"
               aria-label="Abrir Menu de Navegação"
             >
               <Menu className="w-6 h-6" />
@@ -171,7 +171,7 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
       >
         {/* Slide-over Panel */}
         <div
-          className={`absolute top-0 right-0 w-[85%] max-w-[360px] h-full bg-[#4E7A9C] text-white p-6 sm:p-7 shadow-2xl flex flex-col justify-between transform transition-transform duration-300 ease-out ${
+          className={`absolute top-0 right-0 w-[85%] max-w-[360px] h-full bg-[#132A3E] text-white p-6 sm:p-7 shadow-2xl flex flex-col justify-between transform transition-transform duration-300 ease-out ${
             menuOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
           onClick={(e) => e.stopPropagation()}
@@ -179,7 +179,9 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
           <div>
             {/* Drawer Header */}
             <div className="flex items-center justify-between pb-5 border-b border-white/20">
-              <ClubeMaravilhaLogo variant="light" size="sm" />
+              <div className="bg-white/95 px-3 py-1.5 rounded-2xl shadow-xs">
+                <ClubeMaravilhaLogo variant="default" size="sm" />
+              </div>
               <button
                 onClick={() => setMenuOpen(false)}
                 className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
@@ -230,7 +232,7 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
       </div>
 
       {/* 2. Container Principal com Sidebar e Conteúdo Dinâmico */}
-      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-8 flex-1">
+      <div className="max-w-[1520px] mx-auto w-full px-4 sm:px-8 xl:px-12 py-8 flex flex-col md:flex-row gap-8 flex-1">
         {/* Sidebar Esquerda */}
         <UserSidebar
           currentTab={currentTab}

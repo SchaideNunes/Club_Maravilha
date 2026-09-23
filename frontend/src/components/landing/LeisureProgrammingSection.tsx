@@ -57,7 +57,7 @@ export const LeisureProgrammingSection: React.FC<LeisureProgrammingSectionProps>
   ];
 
   return (
-    <section id="programacao-lazer" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <section id="programacao-lazer" className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 py-10">
       {/* Section Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">

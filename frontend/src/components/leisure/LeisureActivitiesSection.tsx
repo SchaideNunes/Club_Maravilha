@@ -23,7 +23,7 @@ export const LeisureActivitiesSection: React.FC<LeisureActivitiesSectionProps> =
   ];
 
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <section className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 py-8">
       {/* Centered Section Title */}
       <h2 className="text-2xl sm:text-3xl font-bold text-[#1B3B54] text-center mb-8">
         Atividades de Lazer

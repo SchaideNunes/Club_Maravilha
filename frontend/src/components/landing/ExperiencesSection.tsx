@@ -11,7 +11,7 @@ export const ExperiencesSection: React.FC<ExperiencesSectionProps> = ({
   onViewFullSchedule
 }) => {
   return (
-    <section id="experiencias" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <section id="experiencias" className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 py-10">
       {/* Section Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl sm:text-2xl font-black tracking-wider text-[#1F3347] uppercase font-sans">

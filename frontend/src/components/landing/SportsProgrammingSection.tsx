@@ -52,7 +52,7 @@ export const SportsProgrammingSection: React.FC<SportsProgrammingSectionProps> =
   ];
 
   return (
-    <section id="programacao-esportes" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <section id="programacao-esportes" className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 py-10">
       {/* Section Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl sm:text-2xl font-bold text-[#1F3347] font-sans">

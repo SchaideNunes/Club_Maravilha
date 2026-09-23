@@ -7,7 +7,7 @@ interface AboutBannerSectionProps {
 
 export const AboutBannerSection: React.FC<AboutBannerSectionProps> = ({ onExploreClub }) => {
   return (
-    <section id="sobre" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <section id="sobre" className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 py-10">
       <div className="relative w-full h-[380px] sm:h-[440px] md:h-[480px] rounded-2xl md:rounded-3xl overflow-hidden shadow-xl border border-slate-200/60 bg-slate-900">
         {/* Background Image: Family walking outdoors */}
         <img

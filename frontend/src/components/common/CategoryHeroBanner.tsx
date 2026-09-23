@@ -14,7 +14,7 @@ export const CategoryHeroBanner: React.FC<CategoryHeroBannerProps> = ({
   imageAlt
 }) => {
   return (
-    <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-6">
+    <section className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 pt-8 pb-6">
       <div className="flex flex-col md:flex-row items-center md:items-start gap-8 lg:gap-14">
         {/* Left Side: Large Rounded Hero Image */}
         <div className="w-full md:w-1/2 flex justify-center md:justify-start">

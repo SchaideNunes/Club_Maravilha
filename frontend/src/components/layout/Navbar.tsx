@@ -138,15 +138,15 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-[#4E7A9C] shadow-md transition-colors duration-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-xs border-b border-slate-200/80 transition-colors duration-200">
+        <div className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 h-20 flex items-center justify-between">
           {/* Brand Logo */}
           <button
             onClick={handleLogoClick}
             className="flex items-center space-x-2 focus:outline-none hover:opacity-95 transition-opacity cursor-pointer"
             aria-label="Clube Maravilha Início"
           >
-            <ClubeMaravilhaLogo variant="light" size="md" />
+            <ClubeMaravilhaLogo variant="default" size="md" />
           </button>
 
           {/* Desktop Right Actions */}
@@ -156,14 +156,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                 if (currentPage === 'home') scrollTo('programacao-esportes');
                 else onNavigatePage?.('esportes');
               }}
-              className="text-white text-sm font-medium hover:text-amber-200 transition-colors focus:outline-none cursor-pointer"
+              className="text-[#1F3347] hover:text-[#4E7A9C] text-sm font-semibold transition-colors focus:outline-none cursor-pointer"
             >
               Programação
             </button>
 
             <button
               onClick={() => onNavigatePage ? onNavigatePage('usuario') : onOpenPortal()}
-              className="px-6 py-2.5 rounded-full bg-[#1F3347] hover:bg-[#162737] text-white text-sm font-medium tracking-wide shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 focus:outline-none cursor-pointer"
+              className="px-6 py-2.5 rounded-full bg-[#1F3347] hover:bg-[#162737] text-white text-sm font-semibold tracking-wide shadow-md transition-all transform hover:-translate-y-0.5 active:translate-y-0 focus:outline-none cursor-pointer"
             >
               Área do associado
             </button>
@@ -171,7 +171,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Desktop Hamburger Button */}
             <button
               onClick={() => setMenuOpen(true)}
-              className="p-2 text-white hover:text-amber-200 focus:outline-none cursor-pointer transition-colors"
+              className="p-2 text-[#1F3347] hover:text-[#4E7A9C] hover:bg-slate-100 rounded-xl focus:outline-none cursor-pointer transition-colors"
               aria-label="Abrir Menu de Navegação"
             >
               <Menu className="w-6 h-6" />
@@ -188,10 +188,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => setMenuOpen(true)}
-              className="p-1.5 text-white hover:text-amber-200 cursor-pointer"
+              className="p-1.5 text-[#1F3347] hover:bg-slate-100 rounded-lg cursor-pointer"
               aria-label="Menu"
             >
-              <Menu className="w-6 h-6 text-white" />
+              <Menu className="w-6 h-6 text-[#1F3347]" />
             </button>
           </div>
         </div>
@@ -207,7 +207,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       >
         {/* Slide-over Panel (Slides in from right) */}
         <div
-          className={`absolute top-0 right-0 w-[85%] max-w-[360px] h-full bg-[#4E7A9C] text-white p-6 sm:p-7 shadow-2xl flex flex-col justify-between transform transition-transform duration-300 ease-out ${
+          className={`absolute top-0 right-0 w-[85%] max-w-[360px] h-full bg-[#132A3E] text-white p-6 sm:p-7 shadow-2xl flex flex-col justify-between transform transition-transform duration-300 ease-out ${
             menuOpen ? 'translate-x-0' : 'translate-x-full'
           }`}
           onClick={(e) => e.stopPropagation()}
@@ -215,7 +215,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div>
             {/* Drawer Header with Logo and Close Button */}
             <div className="flex items-center justify-between pb-5 border-b border-white/20">
-              <ClubeMaravilhaLogo variant="light" size="sm" />
+              <div className="bg-white/95 px-3 py-1.5 rounded-2xl shadow-xs">
+                <ClubeMaravilhaLogo variant="default" size="sm" />
+              </div>
               <button
                 onClick={() => setMenuOpen(false)}
                 className="p-2 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"

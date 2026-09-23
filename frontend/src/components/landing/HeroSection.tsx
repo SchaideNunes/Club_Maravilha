@@ -8,10 +8,10 @@ interface HeroSectionProps {
 
 export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenPortal }) => {
   return (
-    <section id="hero" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12">
+    <section id="hero" className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 pt-6 pb-12">
       {/* Outer Banner Container with Rounded Corners */}
       <div 
-        className="relative w-full h-[400px] sm:h-[480px] md:h-[520px] rounded-2xl md:rounded-3xl overflow-hidden shadow-xl border border-slate-200/60 bg-slate-900"
+        className="relative w-full h-[440px] sm:h-[500px] md:h-[560px] xl:h-[600px] rounded-3xl overflow-hidden shadow-xl border border-slate-200/60 bg-slate-900"
       >
         {/* Background Image: Resort pool & cabana at dusk */}
         <img
@@ -21,7 +21,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ onOpenPortal }) => {
         />
 
         {/* Subtle Ambient Lightening Layer */}
-        <div className="absolute inset-0 bg-gradient-to-r from-white/90 via-white/60 to-transparent md:w-[65%] w-full" />
+        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/70 to-transparent md:w-[65%] w-full" />
 
         {/* Content Card Overlay on the Left (Pixel-perfect match to Figma) */}
         <div className="absolute inset-y-0 left-0 flex items-center p-6 sm:p-10 md:p-14 z-10 max-w-xl">

@@ -12,10 +12,10 @@ export const ClubeMaravilhaLogo: React.FC<LogoProps> = ({
   size = 'md',
   variant = 'default'
 }) => {
-  const heightClass = size === 'sm' ? 'h-10' : size === 'lg' ? 'h-24' : 'h-14';
+  const heightClass = size === 'sm' ? 'h-9' : size === 'lg' ? 'h-20' : 'h-12';
   const filterClass = variant === 'light' 
-    ? 'drop-shadow-[0_1px_2px_rgba(255,255,255,0.4)]' 
-    : 'drop-shadow-[0_1px_2px_rgba(0,0,0,0.1)]';
+    ? 'drop-shadow-[0_1px_3px_rgba(255,255,255,0.7)]' 
+    : '';
 
   return (
     <div className={`inline-flex items-center select-none ${className}`}>

@@ -88,6 +88,7 @@ export default function App() {
       {currentPage === 'usuario' ? (
         <UserDashboardPage
           onBackToHome={() => navigateToPage('home')}
+          onNavigatePage={navigateToPage}
           onOpenBookingModal={(court) => handleOpenPortal(court)}
           onOpenPaymentModal={() => handleOpenPortal()}
         />

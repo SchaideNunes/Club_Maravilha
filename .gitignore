@@ -45,6 +45,7 @@ lerna-debug.log*
 dist/
 dist-ssr/
 *.local
+*.tsbuildinfo
 
 # Database & Docker volumes
 postgres_data/

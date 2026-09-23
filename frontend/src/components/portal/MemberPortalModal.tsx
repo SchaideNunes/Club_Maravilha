@@ -114,10 +114,10 @@ export const MemberPortalModal: React.FC<MemberPortalModalProps> = ({
                 <span className="font-serif text-lg font-medium text-white">Portal do Associado</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold flex items-center space-x-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>ATIVO • SÓCIO #0142</span>
+                  <span>ATIVO • SÓCIO #2026-0042</span>
                 </span>
               </div>
-              <span className="text-xs text-slate-400">Carlos Eduardo Silva • Titular</span>
+              <span className="text-xs text-slate-400">Schaide Nunes • Titular Ouro</span>
             </div>
           </div>
 
@@ -198,12 +198,12 @@ export const MemberPortalModal: React.FC<MemberPortalModalProps> = ({
 
                 <div className="flex items-center space-x-5 mb-8">
                   <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center text-slate-950 font-serif font-bold text-2xl shadow-lg">
-                    CE
+                    SN
                   </div>
                   <div>
-                    <h4 className="text-lg font-bold text-white leading-tight">Carlos Eduardo Silva</h4>
-                    <p className="text-xs text-slate-400 mt-1">CPF: 123.***.***-44</p>
-                    <p className="text-xs text-amber-400/90 font-medium">Sócio Titular • Plano Familiar</p>
+                    <h4 className="text-lg font-bold text-white leading-tight">Schaide Nunes</h4>
+                    <p className="text-xs text-slate-400 mt-1">CPF: 123.456.789-00</p>
+                    <p className="text-xs text-amber-400/90 font-medium">Sócio Titular • Plano Ouro Familiar</p>
                   </div>
                 </div>
 

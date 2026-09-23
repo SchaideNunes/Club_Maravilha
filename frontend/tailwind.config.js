@@ -9,6 +9,7 @@ export default {
       colors: {
         maravilha: {
           blue: '#4E7A9C',
+          'blue-light': '#6899BA',
           'blue-dark': '#3F6785',
           dark: '#1F3347',
           'dark-card': '#1B3B54',

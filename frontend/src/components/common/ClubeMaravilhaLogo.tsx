@@ -4,7 +4,7 @@ import logoImg from '../../assets/logo.png';
 interface LogoProps {
   className?: string;
   size?: 'sm' | 'md' | 'lg';
-  variant?: 'light' | 'dark' | 'default';
+  variant?: 'light' | 'dark' | 'default' | 'on-blue';
 }
 
 export const ClubeMaravilhaLogo: React.FC<LogoProps> = ({
@@ -12,10 +12,11 @@ export const ClubeMaravilhaLogo: React.FC<LogoProps> = ({
   size = 'md',
   variant = 'default'
 }) => {
-  const heightClass = size === 'sm' ? 'h-9' : size === 'lg' ? 'h-20' : 'h-12';
-  const filterClass = variant === 'light' 
-    ? 'drop-shadow-[0_1px_3px_rgba(255,255,255,0.7)]' 
-    : '';
+  const heightClass = size === 'sm' ? 'h-9' : size === 'lg' ? 'h-20' : 'h-14';
+  const filterClass =
+    variant === 'light' || variant === 'on-blue'
+      ? 'drop-shadow-[0_1px_2px_rgba(255,255,255,0.95)] drop-shadow-[0_0_1px_rgba(255,255,255,1)]'
+      : '';
 
   return (
     <div className={`inline-flex items-center select-none ${className}`}>

@@ -105,7 +105,7 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex flex-col justify-between">
       {/* 1. Header do Portal com Navegação e Perfil */}
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-xs border-b border-slate-200/80 transition-colors duration-200">
+      <header className="sticky top-0 z-40 bg-[#6899BA] shadow-sm transition-colors duration-200">
         <div className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 h-20 flex items-center justify-between">
           {/* Logo e Botão Voltar */}
           <div className="flex items-center space-x-4 sm:space-x-6">
@@ -114,14 +114,14 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
               className="flex items-center space-x-2 focus:outline-none hover:opacity-95 transition-opacity cursor-pointer"
               aria-label="Clube Maravilha Início"
             >
-              <ClubeMaravilhaLogo variant="default" size="md" />
+              <ClubeMaravilhaLogo variant="on-blue" size="md" />
             </button>
 
             <button
               onClick={onBackToHome}
-              className="hidden lg:flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-[#1F3347] text-xs font-semibold transition-all cursor-pointer"
+              className="hidden lg:flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-semibold transition-all cursor-pointer shadow-xs"
             >
-              <ArrowLeft className="w-3.5 h-3.5 text-slate-500" />
+              <ArrowLeft className="w-3.5 h-3.5 text-white" />
               <span>Voltar ao Portal</span>
             </button>
           </div>
@@ -131,28 +131,28 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
             {/* Chip de Perfil do Sócio */}
             <div
               onClick={() => setCurrentTab('carteirinha')}
-              className="flex items-center space-x-2.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200/80 border border-slate-200 text-[#1F3347] cursor-pointer transition-colors shadow-xs"
+              className="flex items-center space-x-2.5 px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 text-white cursor-pointer transition-colors shadow-xs"
               title="Clique para ver sua Carteirinha Digital"
             >
               <div className="w-8 h-8 rounded-full bg-amber-400 text-slate-900 font-black flex items-center justify-center text-xs shadow-sm">
                 SN
               </div>
               <div className="hidden sm:flex flex-col text-left">
-                <span className="text-xs font-bold leading-tight tracking-wide text-[#1B3B54]">
+                <span className="text-xs font-bold leading-tight tracking-wide text-white">
                   Schaide Nunes
                 </span>
-                <span className="text-[10px] text-emerald-700 font-semibold flex items-center space-x-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-[10px] text-emerald-300 font-semibold flex items-center space-x-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                   <span>Catraca Liberada</span>
                 </span>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-500 hidden sm:block" />
+              <ChevronDown className="w-3.5 h-3.5 text-white/80 hidden sm:block" />
             </div>
 
             {/* Botão Menu Hamburguer */}
             <button
               onClick={() => setMenuOpen(true)}
-              className="p-2 rounded-xl text-[#1F3347] hover:text-[#4E7A9C] hover:bg-slate-100 focus:outline-none cursor-pointer transition-colors"
+              className="p-2 rounded-xl text-white hover:text-amber-200 hover:bg-white/10 focus:outline-none cursor-pointer transition-colors"
               aria-label="Abrir Menu de Navegação"
             >
               <Menu className="w-6 h-6" />

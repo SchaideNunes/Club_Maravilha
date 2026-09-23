@@ -138,7 +138,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-xs border-b border-slate-200/80 transition-colors duration-200">
+      <header className="sticky top-0 z-40 bg-[#6899BA] shadow-sm transition-colors duration-200">
         <div className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 h-20 flex items-center justify-between">
           {/* Brand Logo */}
           <button
@@ -146,7 +146,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center space-x-2 focus:outline-none hover:opacity-95 transition-opacity cursor-pointer"
             aria-label="Clube Maravilha Início"
           >
-            <ClubeMaravilhaLogo variant="default" size="md" />
+            <ClubeMaravilhaLogo variant="on-blue" size="md" />
           </button>
 
           {/* Desktop Right Actions */}
@@ -156,7 +156,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 if (currentPage === 'home') scrollTo('programacao-esportes');
                 else onNavigatePage?.('esportes');
               }}
-              className="text-[#1F3347] hover:text-[#4E7A9C] text-sm font-semibold transition-colors focus:outline-none cursor-pointer"
+              className="text-white hover:text-amber-200 text-sm font-semibold transition-colors focus:outline-none cursor-pointer"
             >
               Programação
             </button>
@@ -171,7 +171,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Desktop Hamburger Button */}
             <button
               onClick={() => setMenuOpen(true)}
-              className="p-2 text-[#1F3347] hover:text-[#4E7A9C] hover:bg-slate-100 rounded-xl focus:outline-none cursor-pointer transition-colors"
+              className="p-2 text-white hover:text-amber-200 hover:bg-white/10 rounded-xl focus:outline-none cursor-pointer transition-colors"
               aria-label="Abrir Menu de Navegação"
             >
               <Menu className="w-6 h-6" />
@@ -188,10 +188,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             <button
               onClick={() => setMenuOpen(true)}
-              className="p-1.5 text-[#1F3347] hover:bg-slate-100 rounded-lg cursor-pointer"
+              className="p-1.5 text-white hover:bg-white/10 rounded-lg cursor-pointer"
               aria-label="Menu"
             >
-              <Menu className="w-6 h-6 text-[#1F3347]" />
+              <Menu className="w-6 h-6 text-white" />
             </button>
           </div>
         </div>

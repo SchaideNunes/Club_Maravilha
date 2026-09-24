@@ -128,7 +128,7 @@ export const UserFamiliaTab: React.FC = () => {
         {/* Barra de Progresso */}
         <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-[#4E7A9C] to-emerald-500 rounded-full transition-all duration-500"
+            className="h-full bg-[#4E7A9C] rounded-full transition-all duration-500"
             style={{ width: `${(quotaUsed / quotaTotal) * 100}%` }}
           ></div>
         </div>

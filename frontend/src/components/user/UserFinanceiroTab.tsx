@@ -134,25 +134,25 @@ export const UserFinanceiroTab: React.FC = () => {
 
         {/* Bloco de Pagamento Pix (se Pendente) ou Recibo (se Pago) */}
         {invoiceStatus === 'PENDENTE' ? (
-          <div className="mt-4 p-6 rounded-2xl bg-slate-900 text-white space-y-6">
+          <div className="mt-4 p-6 rounded-2xl bg-slate-50 border border-slate-200 text-[#1B3B54] space-y-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-lg bg-teal-500/20 text-teal-400 flex items-center justify-center font-bold">
+                <div className="w-8 h-8 rounded-lg bg-[#EBF4FA] text-[#1B3B54] flex items-center justify-center font-bold text-xs">
                   PIX
                 </div>
-                <h3 className="font-bold text-base text-white">
+                <h3 className="font-bold text-base text-[#1B3B54]">
                   Pague com Pix Instantâneo (Liquidação em 2 segundos)
                 </h3>
               </div>
-              <span className="text-xs text-emerald-400 font-semibold hidden sm:inline">
+              <span className="text-xs text-emerald-700 font-semibold hidden sm:inline">
                 ● Catraca liberada na hora
               </span>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
               {/* QR Code Container */}
-              <div className="md:col-span-4 flex flex-col items-center p-4 bg-white rounded-2xl text-slate-900">
-                <QrCode className="w-36 h-36 text-slate-900" />
+              <div className="md:col-span-4 flex flex-col items-center p-4 bg-white rounded-2xl border border-slate-200 shadow-xs text-slate-900">
+                <QrCode className="w-36 h-36 text-[#1B3B54]" />
                 <span className="text-[11px] font-mono font-bold text-slate-600 mt-2">
                   TXID: CM-202610-8491
                 </span>
@@ -162,7 +162,7 @@ export const UserFinanceiroTab: React.FC = () => {
               {/* Copia e Cola & Simulação */}
               <div className="md:col-span-8 space-y-4">
                 <div>
-                  <label className="text-xs text-slate-300 font-medium block mb-1.5">
+                  <label className="text-xs text-slate-600 font-bold block mb-1.5 uppercase tracking-wider">
                     Código Pix Copia e Cola:
                   </label>
                   <div className="flex items-center space-x-2">
@@ -170,11 +170,11 @@ export const UserFinanceiroTab: React.FC = () => {
                       type="text"
                       readOnly
                       value={pixCode}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-slate-300 font-mono focus:outline-none"
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-700 font-mono focus:outline-none focus:border-[#4E7A9C]"
                     />
                     <button
                       onClick={handleCopyPix}
-                      className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs flex items-center space-x-1.5 transition-colors cursor-pointer shrink-0"
+                      className="px-4 py-2.5 rounded-xl bg-[#1F3347] hover:bg-[#162737] text-white font-bold text-xs flex items-center space-x-1.5 shadow-sm transition-colors cursor-pointer shrink-0"
                     >
                       <Copy className="w-3.5 h-3.5" />
                       <span>{copiedPix ? 'Copiado!' : 'Copiar'}</span>
@@ -184,13 +184,13 @@ export const UserFinanceiroTab: React.FC = () => {
 
                 {/* Botão de Demonstração em Reunião */}
                 <div className="pt-2">
-                  <div className="text-[11px] text-amber-300 mb-2 font-medium">
+                  <div className="text-[11px] text-slate-500 mb-2 font-medium">
                     ⚡ Funcionalidade para Apresentação em Reunião:
                   </div>
                   <button
                     onClick={handleSimulatePayment}
                     disabled={isSimulating}
-                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm flex items-center justify-center space-x-2 shadow-lg hover:shadow-emerald-500/20 transition-all cursor-pointer"
+                    className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm flex items-center justify-center space-x-2 shadow-sm transition-all cursor-pointer"
                   >
                     {isSimulating ? (
                       <>
@@ -204,7 +204,7 @@ export const UserFinanceiroTab: React.FC = () => {
                       </>
                     )}
                   </button>
-                  <p className="text-[11px] text-slate-400 mt-2 text-center">
+                  <p className="text-[11px] text-slate-500 mt-2 text-center">
                     Ao receber o Pix, o sistema emite o recibo no WhatsApp e libera o associado na catraca em 0.3s.
                   </p>
                 </div>
@@ -212,40 +212,40 @@ export const UserFinanceiroTab: React.FC = () => {
             </div>
           </div>
         ) : (
-          <div className="mt-4 p-6 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-emerald-100 space-y-4 animate-in fade-in">
+          <div className="mt-4 p-6 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-950 space-y-4 animate-in fade-in">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
                 <FileCheck className="w-6 h-6" />
               </div>
               <div>
-                <h3 className="font-bold text-emerald-300 text-base">
+                <h3 className="font-bold text-emerald-900 text-base">
                   Fatura Liquidada com Sucesso!
                 </h3>
-                <p className="text-xs text-emerald-200">
+                <p className="text-xs text-emerald-700">
                   Pagamento confirmado via Pix • Autenticação Bancária: CM-202610-8491-BACEN
                 </p>
               </div>
             </div>
 
-            <div className="p-4 rounded-xl bg-emerald-900/30 border border-emerald-500/30 text-xs space-y-2 font-mono">
+            <div className="p-4 rounded-xl bg-white border border-emerald-200 text-xs space-y-2 font-mono text-slate-700">
               <div className="flex justify-between">
                 <span>Data/Hora da Quitação:</span>
-                <span className="font-bold text-white">Hoje às 21:05 (Instantâneo)</span>
+                <span className="font-bold text-[#1B3B54]">Hoje às 21:05 (Instantâneo)</span>
               </div>
               <div className="flex justify-between">
                 <span>Notificação WhatsApp:</span>
-                <span className="font-bold text-emerald-300">Enviada com sucesso para (75) 98328-5614</span>
+                <span className="font-bold text-emerald-700">Enviada com sucesso para (75) 98328-5614</span>
               </div>
               <div className="flex justify-between">
                 <span>Status Catraca Facial:</span>
-                <span className="font-bold text-emerald-400">LIBERADA SEM RESTRIÇÕES</span>
+                <span className="font-bold text-emerald-700">LIBERADA SEM RESTRIÇÕES</span>
               </div>
             </div>
 
             <div className="flex justify-end pt-2">
               <button
                 onClick={() => setInvoiceStatus('PENDENTE')}
-                className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
+                className="text-xs text-slate-500 hover:text-[#1B3B54] underline cursor-pointer"
               >
                 Resetar demonstração para 'Pendente'
               </button>

@@ -29,7 +29,7 @@ export const UserContaTab: React.FC = () => {
         {/* Dados Pessoais (7 colunas) */}
         <div className="lg:col-span-7 bg-white rounded-3xl border border-slate-200 shadow-sm p-6 sm:p-7 space-y-6">
           <div className="flex items-center space-x-4 pb-6 border-b border-slate-100">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-[#1B3B54] to-[#4E7A9C] text-amber-300 font-black text-2xl flex items-center justify-center shadow-md">
+            <div className="w-16 h-16 rounded-2xl bg-amber-400 text-[#1B3B54] font-black text-2xl flex items-center justify-center shadow-xs">
               SN
             </div>
             <div>

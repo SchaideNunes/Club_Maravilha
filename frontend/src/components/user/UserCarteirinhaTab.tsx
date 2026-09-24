@@ -59,20 +59,16 @@ export const UserCarteirinhaTab: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Coluna Esquerda: A Carteirinha Digital Estilizada (Frente & Verso) */}
         <div className="lg:col-span-7 space-y-6">
-          <div className="w-full max-w-md mx-auto rounded-3xl p-6 sm:p-7 bg-gradient-to-br from-[#122434] via-[#1B3B54] to-[#2B5475] text-white shadow-2xl border border-amber-400/30 relative overflow-hidden">
-            {/* Efeito Glow Dourado */}
-            <div className="absolute -top-16 -right-16 w-44 h-44 bg-amber-400/15 rounded-full blur-2xl pointer-events-none"></div>
-            <div className="absolute -bottom-16 -left-16 w-44 h-44 bg-cyan-400/10 rounded-full blur-2xl pointer-events-none"></div>
-
+          <div className="w-full max-w-md mx-auto rounded-3xl p-6 sm:p-7 bg-[#1B3B54] text-white shadow-lg border border-[#2B5475] relative">
             {/* Topbar da Carteirinha */}
             <div className="flex items-center justify-between pb-6 border-b border-white/15">
               <div className="flex items-center space-x-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 font-serif font-black text-sm shadow-inner">
+                <div className="w-9 h-9 rounded-xl bg-amber-400 text-[#1B3B54] flex items-center justify-center font-black text-sm shadow-xs">
                   CM
                 </div>
                 <div>
-                  <h3 className="font-serif tracking-widest font-black text-sm uppercase text-amber-200">
-                    Club Maravilha
+                  <h3 className="tracking-wider font-bold text-sm uppercase text-white">
+                    Clube Maravilha
                   </h3>
                   <span className="text-[10px] text-slate-300 uppercase tracking-wider block -mt-0.5">
                     Teofilândia • Bahia
@@ -80,7 +76,7 @@ export const UserCarteirinhaTab: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/25 border border-emerald-400/50 text-emerald-300 text-[11px] font-bold">
+              <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-400/30 text-emerald-300 text-[11px] font-bold">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span>ADIMPLENTE</span>
               </div>
@@ -88,15 +84,13 @@ export const UserCarteirinhaTab: React.FC = () => {
 
             {/* Dados Centrais do Sócio */}
             <div className="py-6 flex items-center space-x-5">
-              <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-600 p-0.5 shadow-lg shrink-0">
-                <div className="w-full h-full rounded-2xl bg-[#1B3B54] flex flex-col items-center justify-center text-amber-300 font-bold">
-                  <span className="text-2xl font-black">SN</span>
-                  <span className="text-[9px] uppercase tracking-tighter text-amber-400/80">TITULAR</span>
-                </div>
+              <div className="w-18 h-18 rounded-2xl bg-amber-400 text-[#1B3B54] flex flex-col items-center justify-center font-black shadow-sm shrink-0">
+                <span className="text-2xl">SN</span>
+                <span className="text-[9px] uppercase tracking-tighter text-[#1B3B54]/80">TITULAR</span>
               </div>
 
               <div className="min-w-0">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-300/90 block mb-0.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-300 block mb-0.5">
                   SÓCIO TITULAR OURO
                 </span>
                 <h2 className="text-xl font-black text-white truncate tracking-tight">
@@ -179,7 +173,7 @@ export const UserCarteirinhaTab: React.FC = () => {
             {/* Tela Virtual da Catraca */}
             <div className={`p-6 rounded-2xl transition-all duration-300 border ${
               turnstileState === 'granted'
-                ? 'bg-emerald-950 text-emerald-100 border-emerald-500 shadow-lg shadow-emerald-500/10'
+                ? 'bg-emerald-950 text-emerald-100 border-emerald-500 shadow-sm'
                 : turnstileState === 'scanning'
                 ? 'bg-amber-950 text-amber-100 border-amber-500'
                 : 'bg-slate-900 text-slate-200 border-slate-800'

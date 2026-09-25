@@ -124,7 +124,33 @@ Ao final da reunião, mostre o cronograma prático de implantação para transmi
 
 ---
 
+## ❓ 5. Como Explicar a Baixa do Pix: Manual vs. Automática (Asaas / Gateway)
+
+Se a diretoria perguntar:
+> *"Como o sistema sabe se o sócio pagou o Pix? É automático ou a secretária precisa conferir?"*
+
+### 🎙️ Resposta Pronta (O que falar na mesa):
+> *"Excelente pergunta! Por normas de segurança do **Banco Central**, nenhum software do mundo tem autorização para 'olhar' uma conta bancária comum sem uma integração formal com uma instituição financeira credenciada.*
+> 
+> *Por isso, desenhamos o sistema em **dois estágios**, dando total flexibilidade para a diretoria:*
+>
+> 1. **Fase 1 (O que já temos hoje — Custo Zero):**
+>    O sistema já gera o código Pix pronto com o valor da mensalidade e envia no WhatsApp do sócio. O dinheiro cai diretamente na conta bancária do clube. A secretária, ao conferir o extrato ou receber o comprovante, clica no status no painel e ativa o sócio com 1 clique. Já eliminamos 80% do trabalho manual da cobrança.
+>
+> 2. **Fase 2 (Automação Total — O Próximo Passo):**
+>    Para o sistema dar a baixa sozinho em 2 segundos sem ninguém apertar nada, conectamos o sistema a uma conta digital PJ homologada pelo Banco Central (como **Asaas**, **Mercado Pago**, **Banco Inter** ou **Cora**). Assim que o sócio paga o Pix, a instituição financeira avisa nosso sistema via webhook e o associado é liberado instantaneamente.*
+>
+> *Isso garante que o dinheiro do clube nunca passe por terceiros: vai direto para a conta oficial do Clube Maravilha com total segurança fiscal e bancária."*
+
+### 💡 Os 3 Argumentos Chave para Reforçar:
+1. **Segurança Máxima:** Nosso sistema não pede a senha do banco do clube e não realiza transferências por conta própria. O dinheiro vai 100% para a conta da diretoria.
+2. **Custo-Benefício do Gateway (Asaas/Inter):** Não há mensalidade fixa nem taxa de adesão. A plataforma só cobra uma pequena tarifa por Pix pago (geralmente entre R$ 0,80 e R$ 1,80 por mensalidade recebida). Se o clube preferir não gastar nenhum centavo com tarifas no início, pode operar na Fase 1 com baixa em 1 clique pela secretária.
+3. **Padrão de Mercado:** É a mesma arquitetura utilizada por plataformas como iFood, Uber, Netflix e grandes redes de academias: o sistema de gestão integrado à API da instituição bancária.
+
+---
+
 ## 💡 Dicas de Ouro para a Apresentação
 * **Foque na Simplicidade:** Não use termos técnicos complexos como "PostgreSQL", "Docker" ou "APIs". Use termos do negócio: *"gestão de associados"*, *"baixa automática sem filas"*, *"notificação no celular"* e *"controle de quadras"*.
 * **Deixe a Diretoria Interagir:** Peça para alguém da mesa falar um nome e cadastre ao vivo no painel de associados. Isso quebra qualquer dúvida sobre a funcionalidade do sistema.
 * **Segurança de Execução:** Todas as funções da tela possuem retorno imediato e visual limpo na paleta de cores aprovada (`#1B3B54` e `#6899BA`).
+

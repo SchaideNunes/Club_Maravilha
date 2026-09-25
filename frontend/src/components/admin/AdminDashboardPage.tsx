@@ -33,6 +33,75 @@ export interface Member {
   observacoes?: string;
 }
 
+// Helper para renderizar a mensagem com formatação autêntica do WhatsApp
+const renderWhatsAppFormattedContent = (content: string) => {
+  if (!content) return null;
+
+  const lines = content.split('\n');
+
+  return lines.map((line, lineIndex) => {
+    // Linha vazia vira espaçador
+    if (!line.trim()) {
+      return <div key={lineIndex} className="h-1.5" />;
+    }
+
+    // Se for o código Pix Copia e Cola (código longo EMVCo ou linha do Pix)
+    const isPixCode =
+      line.trim().startsWith('00020126') ||
+      (line.trim().length > 40 && !line.includes(' '));
+
+    if (isPixCode) {
+      return (
+        <div
+          key={lineIndex}
+          className="my-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/90 text-slate-800 select-all shadow-2xs overflow-hidden"
+        >
+          <div className="flex items-center justify-between text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+            <span className="flex items-center space-x-1">
+              <span>💳</span>
+              <span>Chave Pix Copia e Cola</span>
+            </span>
+            <span className="text-emerald-700 font-semibold text-[9px] bg-emerald-100 px-1.5 py-0.5 rounded">
+              Toque para copiar
+            </span>
+          </div>
+          <div className="font-mono text-[10px] leading-relaxed break-all bg-white p-2 rounded-lg border border-slate-200 text-slate-700 select-all">
+            {line.trim()}
+          </div>
+        </div>
+      );
+    }
+
+    // Renderiza linha normal formatando *negrito* e links
+    const parts = line.split(/(\*[^*]+\*|https?:\/\/[^\s]+)/g);
+
+    return (
+      <div key={lineIndex} className="leading-relaxed break-words break-all text-xs text-slate-800 font-sans">
+        {parts.map((part, partIdx) => {
+          if (part.startsWith('*') && part.endsWith('*') && part.length > 2) {
+            return (
+              <strong key={partIdx} className="font-bold text-slate-950">
+                {part.slice(1, -1)}
+              </strong>
+            );
+          }
+          if (part.startsWith('http://') || part.startsWith('https://')) {
+            return (
+              <span
+                key={partIdx}
+                className="text-sky-600 underline font-medium break-all"
+              >
+                {part}
+              </span>
+            );
+          }
+          return <span key={partIdx}>{part}</span>;
+        })}
+      </div>
+    );
+  });
+};
+
 interface AdminDashboardPageProps {
   onBackToHome: () => void;
   onNavigatePage: (page: PageRoute) => void;
@@ -202,7 +271,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         `Lembramos que a mensalidade do *Clube Maravilha* referente ao plano *${memberPlan}* vence no *${memberVencimento}*.\n\n` +
         `💰 *Valor:* R$ 150,00\n\n` +
         `Para sua comodidade, pague diretamente pelo *Pix Copia e Cola*:\n` +
-        `00020126580014br.gov.bcb.pix0136clube-maravilha-pix-759987654325204000053039865405150.005802BR5915CLUBE MARAVILHA6009TEOFILANDIA62070503***6304\n\n` +
+        `00020126580014br.gov.bcb.pix0136clube-maravilha-pix-759987654325204000053039865405150005802BR5915CLUBEMARAVILHA6009TEOFILANDIA62070503***6304\n\n` +
         `A baixa é confirmada no sistema em poucos instantes após o pagamento! 🚀`
       );
     } else if (messageTemplate === 'reserva_quadra') {
@@ -869,21 +938,24 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     </div>
 
                     {/* Balão da Mensagem Recebida do Clube */}
-                    <div className="self-start max-w-[92%] bg-white rounded-2xl rounded-tl-xs p-3.5 shadow-sm border border-slate-200/60 relative animate-in fade-in zoom-in-95 duration-200">
-                      {/* Logo / Remetente Interno */}
-                      <div className="flex items-center space-x-1.5 pb-1.5 mb-1.5 border-b border-slate-100 text-[10px] text-emerald-700 font-bold">
+                    <div className="self-start max-w-[90%] bg-white rounded-2xl rounded-tl-none p-3.5 shadow-sm border border-slate-200/70 relative animate-in fade-in zoom-in-95 duration-200">
+                      {/* Rabicho estilo WhatsApp recebido */}
+                      <div className="absolute top-0 -left-1.5 w-0 h-0 border-t-[8px] border-t-white border-l-[8px] border-l-transparent"></div>
+
+                      {/* Remetente Interno */}
+                      <div className="flex items-center space-x-1.5 pb-1.5 mb-2 border-b border-slate-100 text-[10px] text-emerald-700 font-bold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                         <span>Clube Maravilha • Secretaria</span>
                       </div>
 
-                      {/* Texto com formatação WhatsApp */}
-                      <div className="text-xs text-slate-800 leading-relaxed whitespace-pre-line font-sans">
-                        {customMessage}
+                      {/* Conteúdo com Formatação Real do WhatsApp */}
+                      <div className="space-y-0.5">
+                        {renderWhatsAppFormattedContent(customMessage)}
                       </div>
 
-                      {/* Hora da mensagem e status */}
-                      <div className="flex items-center justify-end space-x-1 mt-2 text-[10px] text-slate-400">
+                      {/* Hora da mensagem (mensagem recebida no WhatsApp mostra apenas o horário) */}
+                      <div className="flex items-center justify-end space-x-1 mt-1.5 text-[10px] text-slate-400 font-sans">
                         <span>10:42</span>
-                        <span className="text-sky-500 font-black">✓✓</span>
                       </div>
                     </div>
                   </div>

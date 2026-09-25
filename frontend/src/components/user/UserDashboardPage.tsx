@@ -139,7 +139,7 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
               <button
                 onClick={() => onNavigatePage('admin')}
                 className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-[#1B3B54] hover:bg-[#152e42] border border-white/20 text-amber-300 hover:text-amber-200 text-xs font-semibold transition-all cursor-pointer shadow-xs"
-                title="Acessar Painel da Diretoria e Catracas"
+                title="Acessar Painel Administrativo"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
                 <span>Painel da Diretoria</span>
@@ -161,7 +161,7 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
                 </span>
                 <span className="text-[10px] text-emerald-300 font-semibold flex items-center space-x-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>Catraca Liberada</span>
+                  <span>Sócio Ativo</span>
                 </span>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-white/80 hidden sm:block" />

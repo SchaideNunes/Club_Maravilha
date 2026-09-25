@@ -3,13 +3,10 @@ import {
   ShieldCheck,
   CheckCircle2,
   QrCode,
-  Sparkles,
-  Zap,
   Users
 } from 'lucide-react';
 
 export const UserCarteirinhaTab: React.FC = () => {
-  const [turnstileState, setTurnstileState] = useState<'idle' | 'scanning' | 'granted'>('idle');
   const [timestamp, setTimestamp] = useState('');
 
   useEffect(() => {
@@ -27,16 +24,6 @@ export const UserCarteirinhaTab: React.FC = () => {
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
-
-  const handleSimulateTurnstile = () => {
-    setTurnstileState('scanning');
-    setTimeout(() => {
-      setTurnstileState('granted');
-      setTimeout(() => {
-        setTurnstileState('idle');
-      }, 5000);
-    }, 1200);
-  };
 
   return (
     <div className="space-y-8">
@@ -131,129 +118,70 @@ export const UserCarteirinhaTab: React.FC = () => {
               </div>
             </div>
 
-            {/* Selo de Biometria Facial Integrada */}
+            {/* Selo de Acesso */}
             <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-300">
               <span className="flex items-center space-x-1.5 text-emerald-300 font-medium">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Biometria Facial Sincronizada</span>
+                <span>Credencial Válida • Portaria Principal</span>
               </span>
               <span className="text-slate-400 text-[10px]">
-                Portaria 01 • Catraca Automática
+                Clube Maravilha • 2026
               </span>
-            </div>
-          </div>
-
-          {/* Dica para Apresentação */}
-          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start space-x-3">
-            <Sparkles className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <span className="font-bold block mb-0.5">Destaque para a Reunião com a Diretoria:</span>
-              O associado não precisa de cartão de plástico. A catraca reconhece o rosto do sócio em menos de 0.5 segundo ou lê o QR Code dinâmico anti-fraude diretamente pelo celular.
             </div>
           </div>
         </div>
 
-        {/* Coluna Direita: Simulador Interativo da Catraca */}
+        {/* Coluna Direita: Informações de Acesso & Benefícios */}
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
             <div className="flex items-center space-x-3">
               <div className="w-10 h-10 rounded-xl bg-[#4E7A9C] text-white flex items-center justify-center shadow-sm">
-                <Zap className="w-5 h-5" />
+                <CheckCircle2 className="w-5 h-5 text-emerald-300" />
               </div>
               <div>
                 <h3 className="font-bold text-[#1B3B54] text-base">
-                  Simulador de Catraca Facial
+                  Acesso & Benefícios do Sócio
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Teste em tempo real a validação da portaria social.
+                  Consulte os benefícios ativos da sua matrícula.
                 </p>
               </div>
             </div>
 
-            {/* Tela Virtual da Catraca */}
-            <div className={`p-6 rounded-2xl transition-all duration-300 border ${
-              turnstileState === 'granted'
-                ? 'bg-emerald-950 text-emerald-100 border-emerald-500 shadow-sm'
-                : turnstileState === 'scanning'
-                ? 'bg-amber-950 text-amber-100 border-amber-500'
-                : 'bg-slate-900 text-slate-200 border-slate-800'
-            }`}>
-              <div className="text-center space-y-3">
-                <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-white/10 text-xs font-mono uppercase tracking-wider">
-                  <span className={`w-2 h-2 rounded-full ${
-                    turnstileState === 'granted' ? 'bg-emerald-400 animate-ping' : 'bg-slate-400'
-                  }`}></span>
-                  <span>Catraca 01 • Portaria Principal</span>
-                </div>
+            {/* Lista de Benefícios e Permissões */}
+            <div className="space-y-3 pt-2 text-xs">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-600 font-medium">Situação Cadastral:</span>
+                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  <span>Ativo / Regular</span>
+                </span>
+              </div>
 
-                {turnstileState === 'idle' && (
-                  <div className="py-4">
-                    <p className="text-slate-400 text-xs">Sensor aguardando aproximação...</p>
-                    <p className="text-lg font-bold text-white mt-1">APROXIME O ROSTO OU QR CODE</p>
-                  </div>
-                )}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-600 font-medium">Dependentes Inclusos:</span>
+                <span className="font-bold text-slate-800">3 familiares ativos</span>
+              </div>
 
-                {turnstileState === 'scanning' && (
-                  <div className="py-4">
-                    <div className="w-8 h-8 border-3 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
-                    <p className="text-amber-300 font-bold text-sm">Consultando Biometria & Mensalidade...</p>
-                    <p className="text-[11px] text-amber-400/80">Validando com base do PostgreSQL</p>
-                  </div>
-                )}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-600 font-medium">Exame Médico / Piscina:</span>
+                <span className="font-bold text-emerald-700">Válido até Dez/2026</span>
+              </div>
 
-                {turnstileState === 'granted' && (
-                  <div className="py-4 space-y-2 animate-in fade-in zoom-in-95 duration-200">
-                    <div className="w-12 h-12 rounded-full bg-emerald-500/20 border border-emerald-400 flex items-center justify-center mx-auto text-emerald-400">
-                      <CheckCircle2 className="w-7 h-7" />
-                    </div>
-                    <h4 className="text-xl font-black text-emerald-300">
-                      ACESSO LIBERADO!
-                    </h4>
-                    <p className="text-xs text-emerald-200 font-medium">
-                      Bem-vindo(a), Schaide Nunes!
-                    </p>
-                    <div className="pt-2 text-[10px] font-mono text-emerald-400/80 border-t border-emerald-500/20">
-                      Catraca destravada • Latência: 0.28s • Log #TUR-84219
-                    </div>
-                  </div>
-                )}
+              <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-slate-600 font-medium">Reservas de Quadras:</span>
+                <span className="font-bold text-slate-800">Liberado (Beach Tennis e Tênis)</span>
               </div>
             </div>
 
-            {/* Botão de Ação */}
-            <button
-              onClick={handleSimulateTurnstile}
-              disabled={turnstileState !== 'idle'}
-              className={`w-full py-3.5 px-4 rounded-xl font-bold text-sm flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-md ${
-                turnstileState !== 'idle'
-                  ? 'bg-slate-200 text-slate-500 cursor-not-allowed'
-                  : 'bg-[#1B3B54] hover:bg-[#152e42] text-white hover:shadow-lg'
-              }`}
-            >
-              <Zap className="w-4 h-4 text-amber-400" />
-              <span>
-                {turnstileState === 'scanning'
-                  ? 'Verificando...'
-                  : turnstileState === 'granted'
-                  ? 'Catraca Liberada!'
-                  : '⚡ Simular Leitura na Catraca (Portaria)'}
-              </span>
-            </button>
-
-            {/* Informações da Política */}
-            <div className="space-y-2 pt-2 text-xs text-slate-500">
-              <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                <span>Situação Cadastral:</span>
-                <span className="font-semibold text-emerald-700">Ativo / Regular</span>
-              </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                <span>Limite de Reservas Ativas:</span>
-                <span className="font-semibold text-slate-800">2 reservas simultâneas</span>
-              </div>
-              <div className="flex items-center justify-between py-1 border-b border-slate-100">
-                <span>Exame Médico / Piscina:</span>
-                <span className="font-semibold text-emerald-700">Válido até Dez/2026</span>
-              </div>
+            {/* Ações Práticas */}
+            <div className="space-y-2 pt-2">
+              <button
+                onClick={() => alert('Carteirinha digital salva! Apresente o QR Code na portaria ou secretária do clube.')}
+                className="w-full py-3 px-4 rounded-xl bg-[#1B3B54] hover:bg-[#152e42] text-white font-bold text-xs flex items-center justify-center space-x-2 transition-colors cursor-pointer shadow-xs"
+              >
+                <span>Baixar Carteirinha para o Celular</span>
+              </button>
             </div>
           </div>
         </div>

@@ -1,24 +1,37 @@
 import React, { useState } from 'react';
 import {
   Users,
-  DollarSign,
-  Zap,
-  Calendar,
-  ShieldCheck,
-  RefreshCw,
-  Send,
-  Upload,
   Search,
   CheckCircle2,
   ArrowLeft,
-  Wifi,
-  WifiOff,
-  FileSpreadsheet,
-  Activity,
-  MessageSquare
+  MessageSquare,
+  Plus,
+  Edit2,
+  Trash2,
+  Phone,
+  Mail,
+  Calendar,
+  DollarSign,
+  Send,
+  Copy,
+  X
 } from 'lucide-react';
 import { ClubeMaravilhaLogo } from '../common/ClubeMaravilhaLogo';
 import { PageRoute } from '../layout/Navbar';
+
+export interface Member {
+  id: string;
+  matricula: string;
+  name: string;
+  cpf: string;
+  phone: string;
+  email: string;
+  plano: 'Sócio Titular' | 'Familiar Ouro' | 'Individual Esportivo' | 'Sênior';
+  vencimento: string;
+  status: 'Ativo' | 'Pendente' | 'Inativo';
+  cadastradoEm: string;
+  observacoes?: string;
+}
 
 interface AdminDashboardPageProps {
   onBackToHome: () => void;
@@ -29,695 +42,949 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   onBackToHome,
   onNavigatePage
 }) => {
-  const [activeTab, setActiveTab] = useState<'kpis' | 'associados' | 'catracas' | 'cobranca' | 'quadras'>('kpis');
-  
-  // Interactive State
-  const [syncingTurnstile, setSyncingTurnstile] = useState(false);
+  // Tabs: 'cadastros' (Administração de Sócios), 'whatsapp' (Estilo da Mensagem WhatsApp), 'reservas' (Quadras), 'resumo' (Visão Geral)
+  const [activeTab, setActiveTab] = useState<'cadastros' | 'whatsapp' | 'reservas' | 'resumo'>('cadastros');
+
+  // Feedback Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [offlineSimulated, setOfflineSimulated] = useState(false);
-  const [runningBilling, setRunningBilling] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'TODOS' | 'ATIVO' | 'INADIMPLENTE'>('TODOS');
-  const [showImportModal, setShowImportModal] = useState(false);
-  const [importProgress, setImportProgress] = useState<number | null>(null);
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
 
-  // Live Turnstile Feed
-  const [turnstileLogs, setTurnstileLogs] = useState([
-    {
-      id: 1,
-      name: 'Schaide Nunes',
-      categoria: 'Sócio Titular',
-      matricula: '#2026-0042',
-      metodo: 'Reconhecimento Facial',
-      catraca: 'Catraca 01 (Portaria Social)',
-      hora: '17:42:10',
-      status: 'LIBERADO',
-      latency: '0.24s'
-    },
-    {
-      id: 2,
-      name: 'Mariana Duarte',
-      categoria: 'Convidada de Sócio',
-      matricula: 'Token #cm_guest_9f83a2',
-      metodo: 'QR Code Dinâmico',
-      catraca: 'Catraca 02 (Visitantes)',
-      hora: '17:38:05',
-      status: 'LIBERADO',
-      latency: '0.28s'
-    },
-    {
-      id: 3,
-      name: 'Carlos Eduardo',
-      categoria: 'Sócio Dependente',
-      matricula: '#2026-0042-D1',
-      metodo: 'Reconhecimento Facial',
-      catraca: 'Catraca 01 (Portaria Social)',
-      hora: '17:21:40',
-      status: 'LIBERADO',
-      latency: '0.22s'
-    },
-    {
-      id: 4,
-      name: 'Lucas Moreira',
-      categoria: 'Sócio Titular',
-      matricula: '#2025-0811',
-      metodo: 'Reconhecimento Facial',
-      catraca: 'Catraca 01 (Portaria Social)',
-      hora: '16:55:12',
-      status: 'BLOQUEADO',
-      latency: '0.31s',
-      reason: 'Inadimplência D+8 (Fatura Vencida)'
-    }
-  ]);
-
-  // Associados List
-  const [associadosList, setAssociadosList] = useState([
+  // Base inicial de associados
+  const [members, setMembers] = useState<Member[]>([
     {
       id: '1',
+      matricula: '#2026-0042',
       name: 'Schaide Nunes',
       cpf: '123.456.789-00',
-      whatsapp: '(75) 98328-5614',
-      plano: 'Ouro Familiar',
-      matricula: '#2026-0042',
-      status: 'ATIVO',
-      mensalidade: 'Em Dia (R$ 150,00)',
-      catraca: 'Liberada (Facial)',
-      facialRegistered: true
+      phone: '(75) 99876-5432',
+      email: 'schaide.nunes@email.com',
+      plano: 'Sócio Titular',
+      vencimento: 'Dia 10',
+      status: 'Ativo',
+      cadastradoEm: '12/01/2026',
+      observacoes: 'Diretoria / Titular'
     },
     {
       id: '2',
-      name: 'Juliana Costa e Silva',
-      cpf: '234.567.890-11',
-      whatsapp: '(75) 98112-3344',
-      plano: 'Ouro Individual',
       matricula: '#2026-0043',
-      status: 'ATIVO',
-      mensalidade: 'Em Dia (R$ 100,00)',
-      catraca: 'Liberada (Facial)',
-      facialRegistered: true
+      name: 'Ana Clara Silva',
+      cpf: '234.567.890-11',
+      phone: '(75) 99123-4567',
+      email: 'ana.clara@email.com',
+      plano: 'Familiar Ouro',
+      vencimento: 'Dia 10',
+      status: 'Ativo',
+      cadastradoEm: '15/01/2026',
+      observacoes: '3 dependentes incluídos'
     },
     {
       id: '3',
-      name: 'Marcos Vinícius Santos',
-      cpf: '345.678.901-22',
-      whatsapp: '(75) 99221-5566',
-      plano: 'Prata Familiar',
       matricula: '#2026-0044',
-      status: 'ATIVO',
-      mensalidade: 'Em Dia (R$ 120,00)',
-      catraca: 'Liberada (Facial)',
-      facialRegistered: true
+      name: 'Roberto Mendes',
+      cpf: '345.678.901-22',
+      phone: '(75) 99234-5678',
+      email: 'roberto.mendes@email.com',
+      plano: 'Individual Esportivo',
+      vencimento: 'Dia 15',
+      status: 'Ativo',
+      cadastradoEm: '02/02/2026',
+      observacoes: 'Frequenta Beach Tennis e Natação'
     },
     {
       id: '4',
-      name: 'Lucas Moreira de Oliveira',
+      matricula: '#2026-0045',
+      name: 'Carlos Eduardo Santos',
       cpf: '456.789.012-33',
-      whatsapp: '(75) 99887-1122',
-      plano: 'Ouro Familiar',
-      matricula: '#2025-0811',
-      status: 'INADIMPLENTE',
-      mensalidade: 'Vencida há 8 dias (R$ 150,00)',
-      catraca: 'Bloqueada (D+7)',
-      facialRegistered: true
+      phone: '(75) 99345-6789',
+      email: 'carlos.santos@email.com',
+      plano: 'Familiar Ouro',
+      vencimento: 'Dia 05',
+      status: 'Pendente',
+      cadastradoEm: '10/02/2026',
+      observacoes: 'Aguardando confirmação de pagamento Pix'
     },
     {
       id: '5',
-      name: 'Beatriz Almeida Lima',
+      matricula: '#2026-0046',
+      name: 'Juliana Paiva',
       cpf: '567.890.123-44',
-      whatsapp: '(75) 98776-9900',
-      plano: 'Ouro Individual',
-      matricula: '#2026-0045',
-      status: 'ATIVO',
-      mensalidade: 'Em Dia (R$ 100,00)',
-      catraca: 'Liberada (Facial)',
-      facialRegistered: true
+      phone: '(75) 99456-7890',
+      email: 'juliana.paiva@email.com',
+      plano: 'Sênior',
+      vencimento: 'Dia 20',
+      status: 'Ativo',
+      cadastradoEm: '18/02/2026',
+      observacoes: 'Hidroginástica terças e quintas'
+    },
+    {
+      id: '6',
+      matricula: '#2026-0047',
+      name: 'Lucas Fernandes',
+      cpf: '678.901.234-55',
+      phone: '(75) 99567-8901',
+      email: 'lucas.fernandes@email.com',
+      plano: 'Individual Esportivo',
+      vencimento: 'Dia 10',
+      status: 'Ativo',
+      cadastradoEm: '24/02/2026',
+      observacoes: 'Futebol Society semanal'
+    },
+    {
+      id: '7',
+      matricula: '#2026-0048',
+      name: 'Beatriz Moreira',
+      cpf: '789.012.345-66',
+      phone: '(75) 99678-9012',
+      email: 'beatriz.moreira@email.com',
+      plano: 'Sócio Titular',
+      vencimento: 'Dia 05',
+      status: 'Inativo',
+      cadastradoEm: '05/01/2026',
+      observacoes: 'Solicitou trancamento temporário'
     }
   ]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 5000);
-  };
+  // Filtros e busca de associados
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'TODOS' | 'Ativo' | 'Pendente' | 'Inativo'>('TODOS');
 
-  const handleSyncTurnstile = async () => {
-    setSyncingTurnstile(true);
-    try {
-      // Tenta chamar API real se o backend estiver disponível
-      await fetch('http://localhost:8000/api/v1/catraca/sync?reason=admin_manual_trigger', { method: 'POST' }).catch(() => {});
-    } finally {
-      setTimeout(() => {
-        setSyncingTurnstile(false);
-        showToast('Catraca Sincronizada! 482 associados ativos e 8 convidados baixados na memória local (MD5: c98a2f-20260924).');
-      }, 700);
+  // Modais de Criação e Edição
+  const [isNewModalOpen, setIsNewModalOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<Member | null>(null);
+
+  // Form State para Novo/Editar
+  const [formData, setFormData] = useState<{
+    name: string;
+    cpf: string;
+    phone: string;
+    email: string;
+    plano: 'Sócio Titular' | 'Familiar Ouro' | 'Individual Esportivo' | 'Sênior';
+    vencimento: string;
+    status: 'Ativo' | 'Pendente' | 'Inativo';
+    observacoes: string;
+  }>({
+    name: '',
+    cpf: '',
+    phone: '',
+    email: '',
+    plano: 'Sócio Titular',
+    vencimento: 'Dia 10',
+    status: 'Ativo',
+    observacoes: ''
+  });
+
+  // Estado da aba WhatsApp
+  const [selectedMemberForWhatsApp, setSelectedMemberForWhatsApp] = useState<Member>(members[0]);
+  const [messageTemplate, setMessageTemplate] = useState<'boas_vindas' | 'mensalidade_pix' | 'reserva_quadra' | 'comunicado'>('mensalidade_pix');
+  const [customMessage, setCustomMessage] = useState<string>('');
+
+  // Sincroniza a mensagem customizada quando troca o template ou o associado selecionado
+  React.useEffect(() => {
+    const memberName = selectedMemberForWhatsApp?.name || 'Associado';
+    const memberPlan = selectedMemberForWhatsApp?.plano || 'Sócio Titular';
+    const memberMatricula = selectedMemberForWhatsApp?.matricula || '#2026-0042';
+    const memberVencimento = selectedMemberForWhatsApp?.vencimento || 'Dia 10';
+
+    if (messageTemplate === 'boas_vindas') {
+      setCustomMessage(
+        `Olá, *${memberName}*! 👋 Seja muito bem-vindo(a) ao *Clube Maravilha*!\n\n` +
+        `Seu cadastro no plano *${memberPlan}* foi confirmado com sucesso. Sua matrícula é *${memberMatricula}*.\n\n` +
+        `Você já pode usufruir de todas as instalações (piscinas, quadras e áreas de convivência) e acessar o portal do sócio:\n` +
+        `👉 https://clubmaravilha.com.br/#/usuario\n\n` +
+        `Qualquer dúvida, nossa secretaria está à sua disposição!`
+      );
+    } else if (messageTemplate === 'mensalidade_pix') {
+      setCustomMessage(
+        `Olá, *${memberName}*! Tudo bem?\n\n` +
+        `Lembramos que a mensalidade do *Clube Maravilha* referente ao plano *${memberPlan}* vence no *${memberVencimento}*.\n\n` +
+        `💰 *Valor:* R$ 150,00\n\n` +
+        `Para sua comodidade, pague diretamente pelo *Pix Copia e Cola*:\n` +
+        `00020126580014br.gov.bcb.pix0136clube-maravilha-pix-759987654325204000053039865405150.005802BR5915CLUBE MARAVILHA6009TEOFILANDIA62070503***6304\n\n` +
+        `A baixa é confirmada no sistema em poucos instantes após o pagamento! 🚀`
+      );
+    } else if (messageTemplate === 'reserva_quadra') {
+      setCustomMessage(
+        `Olá, *${memberName}*! 🎾\n\n` +
+        `Sua reserva de espaço no *Clube Maravilha* está confirmada!\n\n` +
+        `📍 *Local:* Quadra de Beach Tennis 01\n` +
+        `📅 *Data:* Sábado às 16:00 (1 hora)\n` +
+        `👥 *Modalidade:* Uso Livre do Associado\n\n` +
+        `Aproveite seu jogo e tenha uma excelente experiência!`
+      );
+    } else if (messageTemplate === 'comunicado') {
+      setCustomMessage(
+        `Prezado(a) associado(a) *${memberName}*,\n\n` +
+        `Neste fim de semana teremos o nosso tradicional *Torneio Interno de Integração & Música ao Vivo* na área das piscinas! 🎶🏊‍♂️\n\n` +
+        `Traga sua família para curtir um dia agradável no Clube Maravilha a partir das 15h. Esperamos por você!`
+      );
     }
+  }, [messageTemplate, selectedMemberForWhatsApp]);
+
+  // Abertura do Modal de Novo Cadastro
+  const handleOpenNewModal = () => {
+    setFormData({
+      name: '',
+      cpf: '',
+      phone: '',
+      email: '',
+      plano: 'Sócio Titular',
+      vencimento: 'Dia 10',
+      status: 'Ativo',
+      observacoes: ''
+    });
+    setIsNewModalOpen(true);
   };
 
-  const handleRunBilling = async () => {
-    setRunningBilling(true);
-    try {
-      await fetch('http://localhost:8000/api/v1/faturas/executar-regua', { method: 'POST' }).catch(() => {});
-    } finally {
-      setTimeout(() => {
-        setRunningBilling(false);
-        showToast('Régua Diária Concluída: 18 Pix Copia e Cola enviados pelo WhatsApp com jitter anti-ban (3-8s). 1 alerta de bloqueio D+7 emitido.');
-      }, 900);
+  // Abertura do Modal de Edição
+  const handleOpenEditModal = (member: Member) => {
+    setEditingMember(member);
+    setFormData({
+      name: member.name,
+      cpf: member.cpf,
+      phone: member.phone,
+      email: member.email,
+      plano: member.plano,
+      vencimento: member.vencimento,
+      status: member.status,
+      observacoes: member.observacoes || ''
+    });
+  };
+
+  // Salvar Novo Associado
+  const handleSaveNewMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.name.trim()) {
+      showToast('Por favor, informe o nome do associado.');
+      return;
     }
-  };
 
-  const handleSimulatePass = () => {
-    const newLog = {
-      id: Date.now(),
-      name: 'Schaide Nunes',
-      categoria: 'Sócio Titular',
-      matricula: '#2026-0042',
-      metodo: 'Reconhecimento Facial',
-      catraca: 'Catraca 01 (Portaria Social)',
-      hora: new Date().toLocaleTimeString('pt-BR'),
-      status: 'LIBERADO',
-      latency: '0.21s'
+    const nextNumber = members.length + 42;
+    const newMember: Member = {
+      id: Date.now().toString(),
+      matricula: `#2026-00${nextNumber}`,
+      name: formData.name.trim(),
+      cpf: formData.cpf.trim() || '000.000.000-00',
+      phone: formData.phone.trim() || '(75) 99999-9999',
+      email: formData.email.trim() || 'socio@clubmaravilha.com.br',
+      plano: formData.plano,
+      vencimento: formData.vencimento,
+      status: formData.status,
+      cadastradoEm: new Date().toLocaleDateString('pt-BR'),
+      observacoes: formData.observacoes.trim()
     };
-    setTurnstileLogs([newLog, ...turnstileLogs]);
-    showToast('Simulação de passagem executada: Catraca destravada em 0.21s!');
+
+    setMembers([newMember, ...members]);
+    setIsNewModalOpen(false);
+    showToast(`Associado "${newMember.name}" cadastrado com sucesso!`);
   };
 
-  const handleToggleMemberStatus = (id: string) => {
-    setAssociadosList((prev) =>
+  // Salvar Edição de Associado
+  const handleSaveEditMember = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingMember) return;
+
+    const updated = members.map((m) => {
+      if (m.id === editingMember.id) {
+        return {
+          ...m,
+          name: formData.name.trim(),
+          cpf: formData.cpf.trim(),
+          phone: formData.phone.trim(),
+          email: formData.email.trim(),
+          plano: formData.plano,
+          vencimento: formData.vencimento,
+          status: formData.status,
+          observacoes: formData.observacoes.trim()
+        };
+      }
+      return m;
+    });
+
+    setMembers(updated);
+    setEditingMember(null);
+    showToast(`Cadastro de "${formData.name}" atualizado.`);
+  };
+
+  // Alternar Status Direto
+  const handleToggleStatus = (memberId: string) => {
+    setMembers((prev) =>
       prev.map((m) => {
-        if (m.id === id) {
-          const newStatus = m.status === 'ATIVO' ? 'INADIMPLENTE' : 'ATIVO';
-          const newCatraca = newStatus === 'ATIVO' ? 'Liberada (Facial)' : 'Bloqueada (D+7)';
-          return { ...m, status: newStatus, catraca: newCatraca };
+        if (m.id === memberId) {
+          const nextStatus = m.status === 'Ativo' ? 'Inativo' : 'Ativo';
+          showToast(`Status de ${m.name} alterado para ${nextStatus}.`);
+          return { ...m, status: nextStatus };
         }
         return m;
       })
     );
-    showToast('Status do associado e permissão da catraca atualizados no banco de dados!');
   };
 
-  const handleSimulateImport = () => {
-    setImportProgress(10);
-    const interval = setInterval(() => {
-      setImportProgress((p) => {
-        if (p === null || p >= 100) {
-          clearInterval(interval);
-          setTimeout(() => {
-            setShowImportModal(false);
-            setImportProgress(null);
-            showToast('Importação Excel Concluída: 142 associados migrados, 137 CPFs validados matematicamente e 5 duplicidades ignoradas.');
-          }, 400);
-          return 100;
-        }
-        return p + 25;
-      });
-    }, 250);
+  // Remover associado
+  const handleDeleteMember = (member: Member) => {
+    if (window.confirm(`Deseja realmente remover o cadastro de ${member.name}?`)) {
+      setMembers((prev) => prev.filter((m) => m.id !== member.id));
+      showToast(`Cadastro de ${member.name} removido.`);
+    }
   };
 
-  // Filtered members
-  const filteredAssociados = associadosList.filter((m) => {
+  // Ir para WhatsApp com o associado selecionado
+  const handleGoToWhatsAppForMember = (member: Member) => {
+    setSelectedMemberForWhatsApp(member);
+    setActiveTab('whatsapp');
+  };
+
+  // Filtragem da lista
+  const filteredMembers = members.filter((m) => {
     const matchesSearch =
       m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.cpf.includes(searchQuery) ||
+      m.phone.includes(searchQuery) ||
       m.matricula.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'TODOS' || m.status === statusFilter;
+
+    const matchesStatus =
+      statusFilter === 'TODOS' ? true : m.status === statusFilter;
+
     return matchesSearch && matchesStatus;
   });
 
+  // Estatísticas calculadas
+  const totalCadastros = members.length;
+  const totalAtivos = members.filter((m) => m.status === 'Ativo').length;
+  const totalPendentes = members.filter((m) => m.status === 'Pendente').length;
+  const totalInativos = members.filter((m) => m.status === 'Inativo').length;
+
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#1F3347] flex flex-col justify-between font-sans">
-      {/* 1. Header do Administrador */}
-      <header className="sticky top-0 z-40 bg-[#1B3B54] text-white shadow-md">
+    <div className="min-h-screen bg-[#F8FAFC] text-slate-800 flex flex-col font-sans">
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 bg-[#1B3B54] text-white px-5 py-3.5 rounded-2xl shadow-xl border border-slate-700/50 flex items-center space-x-3 text-sm animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+          <span className="font-medium">{toastMessage}</span>
+        </div>
+      )}
+
+      {/* 1. Header do Painel Administrativo */}
+      <header className="sticky top-0 z-40 bg-[#1B3B54] text-white border-b border-slate-700/60 shadow-sm">
         <div className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12 h-20 flex items-center justify-between">
-          {/* Logo e Título da Gestão */}
-          <div className="flex items-center space-x-4 sm:space-x-6">
+          <div className="flex items-center space-x-4">
             <button
               onClick={onBackToHome}
-              className="flex items-center space-x-2 focus:outline-none hover:opacity-95 transition-opacity cursor-pointer"
-              aria-label="Voltar para a Home"
+              className="flex items-center space-x-2 focus:outline-none hover:opacity-90 transition-opacity cursor-pointer"
             >
               <ClubeMaravilhaLogo variant="on-blue" size="md" />
             </button>
-
-            <div className="hidden md:flex items-center space-x-2.5 pl-4 border-l border-white/20">
-              <span className="px-2.5 py-1 rounded-md bg-amber-400 text-[#1B3B54] text-[11px] font-black uppercase tracking-wider">
-                DIRETORIA
+            <div className="h-6 w-px bg-white/20 hidden sm:block"></div>
+            <div>
+              <span className="text-xs uppercase font-extrabold tracking-wider text-amber-300 block">
+                Painel Administrativo
               </span>
-              <span className="text-xs font-semibold text-slate-200">
-                Painel Administrativo & Operações
+              <span className="text-sm font-semibold text-white/90">
+                Gestão do Clube Maravilha
               </span>
             </div>
           </div>
 
-          {/* Status dos Microsserviços e Botões de Alternância */}
-          <div className="flex items-center space-x-3 sm:space-x-4">
-            {/* Status Pills */}
-            <div className="hidden lg:flex items-center space-x-2 text-[11px] bg-white/10 px-3 py-1.5 rounded-full border border-white/15">
-              <span className="flex items-center space-x-1.5 text-emerald-300 font-semibold">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>API 100%</span>
-              </span>
-              <span className="text-white/40">•</span>
-              <span className="flex items-center space-x-1.5 text-emerald-300 font-semibold">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Catraca Whitelist</span>
-              </span>
-              <span className="text-white/40">•</span>
-              <span className="flex items-center space-x-1.5 text-amber-300 font-semibold">
-                <MessageSquare className="w-3.5 h-3.5" />
-                <span>WhatsApp Fila Ativa</span>
-              </span>
-            </div>
-
-            {/* Alternar para Visão do Sócio */}
-            <button
-              onClick={() => onNavigatePage('usuario')}
-              className="px-3.5 py-1.5 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 text-white text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center space-x-1.5"
-            >
-              <Users className="w-3.5 h-3.5" />
-              <span>Área do Associado</span>
-            </button>
-
+          <div className="flex items-center space-x-3">
             <button
               onClick={onBackToHome}
-              className="hidden sm:flex items-center space-x-1 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-all cursor-pointer"
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Ver Site</span>
+              <span>Voltar ao Site</span>
+            </button>
+            <button
+              onClick={() => onNavigatePage('usuario')}
+              className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-xl bg-[#6899BA] hover:bg-[#5b89a8] text-white text-xs font-semibold transition-colors cursor-pointer shadow-xs"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Ver Visão do Sócio</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Toast Alert Flutuante */}
-      {toastMessage && (
-        <div className="fixed top-24 right-6 z-50 max-w-md p-4 rounded-2xl bg-[#1B3B54] text-white border border-[#4E7A9C] shadow-2xl flex items-start space-x-3 animate-in fade-in slide-in-from-top-4 duration-300">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-          <div className="flex-1">
-            <span className="text-xs font-bold uppercase tracking-wider text-amber-300 block mb-0.5">
-              Notificação Operacional
-            </span>
-            <p className="text-xs leading-relaxed text-slate-100">{toastMessage}</p>
+      {/* 2. Barra de Navegação de Abas */}
+      <div className="bg-white border-b border-slate-200">
+        <div className="max-w-[1520px] mx-auto px-4 sm:px-8 xl:px-12">
+          <div className="flex space-x-2 sm:space-x-8 overflow-x-auto scrollbar-none py-3">
+            <button
+              onClick={() => setActiveTab('cadastros')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer shrink-0 ${
+                activeTab === 'cadastros'
+                  ? 'bg-[#1B3B54] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>Administração de Cadastros</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                activeTab === 'cadastros' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {members.length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('whatsapp')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer shrink-0 ${
+                activeTab === 'whatsapp'
+                  ? 'bg-[#1B3B54] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <MessageSquare className="w-4 h-4 text-emerald-500" />
+              <span>Estilo da Mensagem no WhatsApp</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('reservas')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer shrink-0 ${
+                activeTab === 'reservas'
+                  ? 'bg-[#1B3B54] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Reservas das Quadras</span>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('resumo')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-xl text-sm font-bold transition-colors cursor-pointer shrink-0 ${
+                activeTab === 'resumo'
+                  ? 'bg-[#1B3B54] text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              <DollarSign className="w-4 h-4" />
+              <span>Visão Geral & Indicadores</span>
+            </button>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* 2. Container Central */}
-      <div className="max-w-[1520px] mx-auto w-full px-4 sm:px-8 xl:px-12 py-8 flex-1 space-y-8">
-        {/* Barra Superior do Dashboard com Navegação em Abas */}
-        <div className="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center space-x-2 text-xs font-bold uppercase tracking-wider text-[#4E7A9C]">
-              <span>Gestão Integrada</span>
-              <span>•</span>
-              <span>Clube Maravilha</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-[#1B3B54] tracking-tight mt-0.5">
-              Painel de Controle da Diretoria
-            </h1>
-          </div>
-
-          {/* Abas do Admin */}
-          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1 text-xs font-bold">
-            {[
-              { id: 'kpis', label: 'Visão Geral (KPIs)', icon: Activity },
-              { id: 'associados', label: 'Sócios & Migração', icon: Users },
-              { id: 'catracas', label: 'Portaria & Catracas', icon: ShieldCheck },
-              { id: 'cobranca', label: 'Cobrança & WhatsApp', icon: MessageSquare },
-              { id: 'quadras', label: 'Quadras & Reservas', icon: Calendar },
-            ].map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`px-3.5 py-2 rounded-xl transition-all flex items-center space-x-2 whitespace-nowrap cursor-pointer ${
-                    isActive
-                      ? 'bg-[#1B3B54] text-white shadow-xs font-extrabold'
-                      : 'bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-[#1B3B54]'
-                  }`}
-                >
-                  <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-amber-300' : 'text-slate-400'}`} />
-                  <span>{tab.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* ABA 1: VISÃO GERAL (KPIS & AÇÕES RÁPIDAS) */}
-        {/* ========================================================================= */}
-        {activeTab === 'kpis' && (
-          <div className="space-y-8 animate-in fade-in">
-            {/* 4 Cards de Métricas Principais */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-              {/* Card 1: Sócios */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col justify-between space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase font-bold tracking-wider text-slate-500">
-                    Total de Associados
-                  </span>
-                  <div className="w-10 h-10 rounded-2xl bg-[#EBF4FA] text-[#1B3B54] flex items-center justify-center font-bold">
-                    <Users className="w-5 h-5" />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-3xl font-black text-[#1B3B54]">482</div>
-                  <div className="flex items-center space-x-1.5 text-xs text-emerald-700 font-bold mt-1">
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200">
-                      +14 neste mês
-                    </span>
-                    <span>• 96.4% adimplentes</span>
-                  </div>
-                </div>
+      {/* 3. Conteúdo Principal */}
+      <main className="max-w-[1520px] mx-auto w-full px-4 sm:px-8 xl:px-12 py-8 flex-1">
+        {/* ========================================================
+            ABA 1: ADMINISTRAÇÃO DE CADASTROS (FOCO PRINCIPAL)
+        ======================================================== */}
+        {activeTab === 'cadastros' && (
+          <div className="space-y-6">
+            {/* Cards de Resumo Rápido de Cadastros */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
+                <span className="text-xs font-semibold text-slate-500 block">Total de Cadastros</span>
+                <span className="text-2xl font-black text-[#1B3B54] mt-1 block">{totalCadastros}</span>
+                <span className="text-[11px] text-slate-400">Associados registrados</span>
               </div>
-
-              {/* Card 2: Receita / MRR */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col justify-between space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase font-bold tracking-wider text-slate-500">
-                    Receita Recorrente (MRR)
-                  </span>
-                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-                    <DollarSign className="w-5 h-5" />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-3xl font-black text-[#1B3B54]">R$ 72.300</div>
-                  <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-medium mt-1">
-                    <span>Previsão: R$ 75.000</span>
-                    <span className="text-emerald-700 font-bold">(96.4% realizado)</span>
-                  </div>
-                </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
+                <span className="text-xs font-semibold text-slate-500 block">Ativos / Em Dia</span>
+                <span className="text-2xl font-black text-emerald-600 mt-1 block">{totalAtivos}</span>
+                <span className="text-[11px] text-emerald-700 font-medium">{Math.round((totalAtivos / totalCadastros) * 100)}% da base</span>
               </div>
-
-              {/* Card 3: Portaria & Acessos */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col justify-between space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase font-bold tracking-wider text-slate-500">
-                    Acessos na Portaria Hoje
-                  </span>
-                  <div className="w-10 h-10 rounded-2xl bg-[#EBF4FA] text-[#1B3B54] flex items-center justify-center font-bold">
-                    <ShieldCheck className="w-5 h-5" />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-3xl font-black text-[#1B3B54]">184</div>
-                  <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-medium mt-1">
-                    <span className="text-emerald-700 font-bold">0 falhas</span>
-                    <span>• Pico às 17h30</span>
-                  </div>
-                </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
+                <span className="text-xs font-semibold text-slate-500 block">Pagamento Pendente</span>
+                <span className="text-2xl font-black text-amber-600 mt-1 block">{totalPendentes}</span>
+                <span className="text-[11px] text-amber-700 font-medium">Aguardando mensalidade</span>
               </div>
-
-              {/* Card 4: Ocupação das Quadras */}
-              <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs flex flex-col justify-between space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase font-bold tracking-wider text-slate-500">
-                    Ocupação de Quadras
-                  </span>
-                  <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-700 flex items-center justify-center font-bold">
-                    <Calendar className="w-5 h-5" />
-                  </div>
-                </div>
-                <div>
-                  <div className="text-3xl font-black text-[#1B3B54]">82%</div>
-                  <div className="flex items-center space-x-1.5 text-xs text-slate-500 font-medium mt-1">
-                    <span>14 horários confirmados</span>
-                    <span className="text-[#4E7A9C] font-bold">hoje</span>
-                  </div>
-                </div>
+              <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs">
+                <span className="text-xs font-semibold text-slate-500 block">Inativos / Trancados</span>
+                <span className="text-2xl font-black text-slate-500 mt-1 block">{totalInativos}</span>
+                <span className="text-[11px] text-slate-400">Suspensos ou cancelados</span>
               </div>
             </div>
 
-            {/* Painel Operacional da Diretoria: Botões Interativos para a Reunião */}
-            <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/90 shadow-xs space-y-5">
-              <div className="flex items-center justify-between">
+            {/* Cabeçalho de Ações: Busca, Filtros e Botão Novo Associado */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                 <div>
-                  <span className="text-xs uppercase font-bold tracking-wider text-[#4E7A9C]">
-                    Demonstração em Tempo Real para a Reunião
-                  </span>
-                  <h3 className="text-xl font-black text-[#1B3B54] mt-0.5">
-                    Ações de Comando da Gestão
-                  </h3>
-                </div>
-                <span className="text-xs px-3 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold hidden sm:inline">
-                  3 Operações Automatizadas Disponíveis
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                {/* Ação 1: Sincronização Catracas */}
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between space-y-3">
-                  <div>
-                    <div className="flex items-center space-x-2 text-[#1B3B54] font-bold text-sm mb-1">
-                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                      <span>Catracas Físicas (Portaria)</span>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Atualiza a Whitelist offline na memória local das controladoras faciais.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleSyncTurnstile}
-                    disabled={syncingTurnstile}
-                    className="w-full py-2.5 px-3 rounded-xl bg-[#1F3347] hover:bg-[#162737] text-white text-xs font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-xs"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${syncingTurnstile ? 'animate-spin' : ''}`} />
-                    <span>{syncingTurnstile ? 'Sincronizando...' : 'Forçar Sync da Catraca'}</span>
-                  </button>
-                </div>
-
-                {/* Ação 2: Régua de Cobrança WhatsApp */}
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between space-y-3">
-                  <div>
-                    <div className="flex items-center space-x-2 text-[#1B3B54] font-bold text-sm mb-1">
-                      <MessageSquare className="w-4 h-4 text-emerald-600" />
-                      <span>Régua de Cobrança WhatsApp</span>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Dispara a rotina matinal: Pix Copia e Cola em D-0 e lembretes amigáveis em D-3.
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleRunBilling}
-                    disabled={runningBilling}
-                    className="w-full py-2.5 px-3 rounded-xl bg-[#1F3347] hover:bg-[#162737] text-white text-xs font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-xs"
-                  >
-                    <Send className={`w-3.5 h-3.5 ${runningBilling ? 'animate-pulse' : ''}`} />
-                    <span>{runningBilling ? 'Processando Fila...' : 'Disparar Régua de Cobrança'}</span>
-                  </button>
-                </div>
-
-                {/* Ação 3: Importação de Planilha */}
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 flex flex-col justify-between space-y-3">
-                  <div>
-                    <div className="flex items-center space-x-2 text-[#1B3B54] font-bold text-sm mb-1">
-                      <FileSpreadsheet className="w-4 h-4 text-[#4E7A9C]" />
-                      <span>Migração de Sócios (Excel)</span>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Motor de importação assíncrono com validação matemática de CPF.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowImportModal(true)}
-                    className="w-full py-2.5 px-3 rounded-xl bg-white border border-slate-300 hover:border-[#1F3347] text-[#1F3347] text-xs font-bold flex items-center justify-center space-x-2 transition-all cursor-pointer shadow-xs"
-                  >
-                    <Upload className="w-3.5 h-3.5 text-slate-500" />
-                    <span>Importar Planilha .xlsx</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Monitor de Passagem da Portaria em Tempo Real */}
-            <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/90 shadow-xs space-y-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <span className="text-xs uppercase font-bold tracking-wider text-[#4E7A9C]">
-                    Controle de Acesso Físico
-                  </span>
-                  <h3 className="text-xl font-black text-[#1B3B54] mt-0.5">
-                    Feed de Passagens na Catraca (Tempo Real)
-                  </h3>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <button
-                    onClick={handleSimulatePass}
-                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center space-x-1.5 cursor-pointer shadow-xs"
-                  >
-                    <Zap className="w-3.5 h-3.5 text-amber-300" />
-                    <span>Simular Giro na Catraca</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Tabela de Logs */}
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
-                      <th className="pb-3">Sócio / Visitante</th>
-                      <th className="pb-3">Categoria</th>
-                      <th className="pb-3">Método de Validação</th>
-                      <th className="pb-3">Dispositivo / Local</th>
-                      <th className="pb-3">Horário</th>
-                      <th className="pb-3 text-right">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {turnstileLogs.map((log) => (
-                      <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-3.5 font-bold text-[#1B3B54]">
-                          {log.name}
-                          <span className="block text-[11px] font-mono text-slate-400 font-normal">
-                            {log.matricula}
-                          </span>
-                        </td>
-                        <td className="py-3.5 text-slate-600 font-medium">{log.categoria}</td>
-                        <td className="py-3.5 text-slate-600">
-                          <span className="inline-flex items-center space-x-1 text-slate-700 font-medium">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#4E7A9C]"></span>
-                            <span>{log.metodo}</span>
-                          </span>
-                        </td>
-                        <td className="py-3.5 text-slate-500">{log.catraca}</td>
-                        <td className="py-3.5 font-mono text-slate-700 font-semibold">{log.hora}</td>
-                        <td className="py-3.5 text-right">
-                          <span
-                            className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
-                              log.status === 'LIBERADO'
-                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                : 'bg-rose-50 text-rose-800 border border-rose-200'
-                            }`}
-                          >
-                            <span
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                log.status === 'LIBERADO' ? 'bg-emerald-500' : 'bg-rose-500'
-                              }`}
-                            ></span>
-                            <span>{log.status}</span>
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* ABA 2: GESTÃO DE ASSOCIADOS & MIGRAÇÃO */}
-        {/* ========================================================================= */}
-        {activeTab === 'associados' && (
-          <div className="space-y-6 animate-in fade-in">
-            {/* Header da Tabela com Filtros e Busca */}
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/90 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-black text-[#1B3B54]">
-                    Cadastro Geral de Associados
-                  </h3>
+                  <h2 className="text-lg font-bold text-[#1B3B54]">Gestão de Associados</h2>
                   <p className="text-xs text-slate-500">
-                    Gerencie a base de membros, situação cadastral e sincronização de biometria facial.
+                    Cadastre novos sócios, atualize informações de contato e consulte o status da mensalidade.
                   </p>
                 </div>
 
                 <button
-                  onClick={() => setShowImportModal(true)}
-                  className="px-4 py-2 rounded-xl bg-[#1F3347] hover:bg-[#162737] text-white text-xs font-bold flex items-center space-x-2 transition-colors cursor-pointer self-start sm:self-auto"
+                  onClick={handleOpenNewModal}
+                  className="inline-flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl bg-[#1B3B54] hover:bg-[#152e42] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
                 >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Importar Planilha</span>
+                  <Plus className="w-4 h-4 text-amber-300" />
+                  <span>Novo Associado</span>
                 </button>
               </div>
 
-              {/* Filtros e Busca */}
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                <div className="relative flex-1">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              {/* Barra de Filtro e Busca */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
-                    placeholder="Buscar por nome, CPF ou matrícula..."
+                    placeholder="Buscar por nome, CPF, WhatsApp ou matrícula..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-2 text-xs text-[#1B3B54] focus:outline-none focus:border-[#4E7A9C]"
+                    className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-[#4E7A9C] bg-slate-50/50"
                   />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+                    >
+                      Limpar
+                    </button>
+                  )}
                 </div>
 
-                <div className="flex items-center space-x-2">
-                  {(['TODOS', 'ATIVO', 'INADIMPLENTE'] as const).map((st) => (
+                <div className="flex items-center space-x-1.5 overflow-x-auto scrollbar-none">
+                  {(['TODOS', 'Ativo', 'Pendente', 'Inativo'] as const).map((st) => (
                     <button
                       key={st}
                       onClick={() => setStatusFilter(st)}
-                      className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                         statusFilter === st
                           ? 'bg-[#1B3B54] text-white'
                           : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
                       }`}
                     >
-                      {st === 'TODOS' ? 'Todos (482)' : st === 'ATIVO' ? 'Adimplentes (465)' : 'Inadimplentes (17)'}
+                      {st === 'TODOS' ? 'Todos os Status' : st}
                     </button>
                   ))}
                 </div>
               </div>
+            </div>
 
-              {/* Tabela de Associados */}
-              <div className="overflow-x-auto pt-2">
+            {/* Tabela de Associados */}
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wider">
-                      <th className="pb-3">Associado</th>
-                      <th className="pb-3">CPF</th>
-                      <th className="pb-3">WhatsApp</th>
-                      <th className="pb-3">Plano</th>
-                      <th className="pb-3">Mensalidade</th>
-                      <th className="pb-3">Catraca</th>
-                      <th className="pb-3 text-right">Ação</th>
+                  <thead className="bg-slate-50 border-b border-slate-200/90 text-slate-500 font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3 px-4">Matrícula</th>
+                      <th className="py-3 px-4">Nome do Sócio</th>
+                      <th className="py-3 px-4">Contato (WhatsApp / E-mail)</th>
+                      <th className="py-3 px-4">Plano / Categoria</th>
+                      <th className="py-3 px-4">Vencimento</th>
+                      <th className="py-3 px-4">Status</th>
+                      <th className="py-3 px-4 text-right">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {filteredAssociados.map((m) => (
-                      <tr key={m.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-3.5 font-bold text-[#1B3B54]">
-                          {m.name}
-                          <span className="block text-[11px] font-mono text-slate-400 font-normal">
-                            {m.matricula}
-                          </span>
-                        </td>
-                        <td className="py-3.5 font-mono text-slate-600">{m.cpf}</td>
-                        <td className="py-3.5 font-mono text-slate-600">{m.whatsapp}</td>
-                        <td className="py-3.5 font-medium text-slate-700">{m.plano}</td>
-                        <td className="py-3.5 font-semibold text-slate-800">{m.mensalidade}</td>
-                        <td className="py-3.5">
-                          <span
-                            className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                              m.status === 'ATIVO'
-                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                : 'bg-rose-50 text-rose-800 border border-rose-200'
-                            }`}
-                          >
-                            <span>{m.catraca}</span>
-                          </span>
-                        </td>
-                        <td className="py-3.5 text-right">
-                          <button
-                            onClick={() => handleToggleMemberStatus(m.id)}
-                            className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors cursor-pointer ${
-                              m.status === 'ATIVO'
-                                ? 'bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700'
-                                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                            }`}
-                          >
-                            {m.status === 'ATIVO' ? 'Bloquear Acesso' : 'Reativar Sócio'}
-                          </button>
+                    {filteredMembers.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          Nenhum associado encontrado para os filtros selecionados.
                         </td>
                       </tr>
+                    ) : (
+                      filteredMembers.map((m) => (
+                        <tr key={m.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3.5 px-4 font-mono font-bold text-slate-700">
+                            {m.matricula}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="font-bold text-slate-900">{m.name}</div>
+                            <div className="text-[11px] text-slate-400 font-mono">CPF: {m.cpf}</div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center space-x-1.5 text-slate-700 font-medium">
+                              <Phone className="w-3 h-3 text-slate-400" />
+                              <span>{m.phone}</span>
+                            </div>
+                            <div className="text-[11px] text-slate-400 flex items-center space-x-1.5 mt-0.5">
+                              <Mail className="w-3 h-3 text-slate-400" />
+                              <span className="truncate max-w-[160px]">{m.email}</span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="inline-block px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px]">
+                              {m.plano}
+                            </span>
+                            {m.observacoes && (
+                              <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[160px]" title={m.observacoes}>
+                                {m.observacoes}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-600 font-medium">
+                            {m.vencimento}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <button
+                              onClick={() => handleToggleStatus(m.id)}
+                              className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold transition-opacity hover:opacity-80 cursor-pointer ${
+                                m.status === 'Ativo'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : m.status === 'Pendente'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : 'bg-slate-200 text-slate-700'
+                              }`}
+                              title="Clique para alternar o status do associado"
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${
+                                m.status === 'Ativo' ? 'bg-emerald-500' : m.status === 'Pendente' ? 'bg-amber-500' : 'bg-slate-400'
+                              }`}></span>
+                              <span>{m.status}</span>
+                            </button>
+                          </td>
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="inline-flex items-center space-x-1">
+                              {/* Botão Ver no WhatsApp */}
+                              <button
+                                onClick={() => handleGoToWhatsAppForMember(m)}
+                                className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors cursor-pointer"
+                                title="Ver estilo da mensagem no WhatsApp para este associado"
+                              >
+                                <MessageSquare className="w-4 h-4" />
+                              </button>
+
+                              {/* Botão Editar */}
+                              <button
+                                onClick={() => handleOpenEditModal(m)}
+                                className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
+                                title="Editar dados cadastrais"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+
+                              {/* Botão Excluir */}
+                              <button
+                                onClick={() => handleDeleteMember(m)}
+                                className="p-1.5 rounded-lg text-rose-500 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Remover associado"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex items-center justify-between">
+                <span>Exibindo {filteredMembers.length} de {members.length} associados</span>
+                <span className="text-[11px] text-slate-400">
+                  Dica: Para cadastrar ou editar sem afetar o sistema, use os botões na tabela.
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            ABA 2: ESTILO DA MENSAGEM NO WHATSAPP (PEDIDO EXPLÍCITO)
+        ======================================================== */}
+        {activeTab === 'whatsapp' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+            {/* Coluna Esquerda: Controles, Templates e Configurações */}
+            <div className="lg:col-span-6 space-y-6">
+              <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-5">
+                <div>
+                  <div className="flex items-center space-x-2 text-emerald-600 font-bold text-xs uppercase tracking-wider">
+                    <MessageSquare className="w-4 h-4" />
+                    <span>Notificações Automáticas</span>
+                  </div>
+                  <h2 className="text-xl font-black text-[#1B3B54] mt-1">
+                    Estilo da Mensagem que Chega no WhatsApp
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Veja exatamente como o associado visualiza a mensagem no celular dele.
+                  </p>
+                </div>
+
+                {/* Seleção do Associado de Exemplo */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Associado Selecionado para a Demonstração:
+                  </label>
+                  <select
+                    value={selectedMemberForWhatsApp?.id}
+                    onChange={(e) => {
+                      const found = members.find((m) => m.id === e.target.value);
+                      if (found) setSelectedMemberForWhatsApp(found);
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold bg-slate-50 focus:outline-none focus:border-[#4E7A9C]"
+                  >
+                    {members.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.plano} • Vencimento: {m.vencimento})
+                      </option>
                     ))}
+                  </select>
+                </div>
+
+                {/* Seletor de Modelos de Mensagens */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                    Selecione o Tipo de Mensagem:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      onClick={() => setMessageTemplate('mensalidade_pix')}
+                      className={`p-3 rounded-xl border text-left text-xs transition-colors cursor-pointer ${
+                        messageTemplate === 'mensalidade_pix'
+                          ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 font-bold'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                      }`}
+                    >
+                      <span className="block font-bold">💳 Mensalidade & Pix</span>
+                      <span className="text-[11px] text-slate-500">Lembrete com código Pix Copia e Cola</span>
+                    </button>
+
+                    <button
+                      onClick={() => setMessageTemplate('boas_vindas')}
+                      className={`p-3 rounded-xl border text-left text-xs transition-colors cursor-pointer ${
+                        messageTemplate === 'boas_vindas'
+                          ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 font-bold'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                      }`}
+                    >
+                      <span className="block font-bold">👋 Boas-Vindas & Acesso</span>
+                      <span className="text-[11px] text-slate-500">Enviada após novo cadastro</span>
+                    </button>
+
+                    <button
+                      onClick={() => setMessageTemplate('reserva_quadra')}
+                      className={`p-3 rounded-xl border text-left text-xs transition-colors cursor-pointer ${
+                        messageTemplate === 'reserva_quadra'
+                          ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 font-bold'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                      }`}
+                    >
+                      <span className="block font-bold">🎾 Reserva de Quadra</span>
+                      <span className="text-[11px] text-slate-500">Confirmação de Beach Tennis</span>
+                    </button>
+
+                    <button
+                      onClick={() => setMessageTemplate('comunicado')}
+                      className={`p-3 rounded-xl border text-left text-xs transition-colors cursor-pointer ${
+                        messageTemplate === 'comunicado'
+                          ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 font-bold'
+                          : 'border-slate-200 hover:border-slate-300 text-slate-700'
+                      }`}
+                    >
+                      <span className="block font-bold">📢 Comunicado de Evento</span>
+                      <span className="text-[11px] text-slate-500">Aviso sobre shows e finais de semana</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Editor Interativo do Texto da Mensagem */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-slate-700">
+                      Editar Texto da Mensagem:
+                    </label>
+                    <span className="text-[10px] text-slate-400">
+                      Altere o texto e veja o balão do WhatsApp mudar ao vivo
+                    </span>
+                  </div>
+                  <textarea
+                    rows={5}
+                    value={customMessage}
+                    onChange={(e) => setCustomMessage(e.target.value)}
+                    className="w-full p-3 rounded-xl border border-slate-200 text-xs font-mono bg-slate-50/50 focus:outline-none focus:border-[#4E7A9C]"
+                  />
+                </div>
+
+                {/* Botões de Ação */}
+                <div className="flex items-center space-x-3 pt-2">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(customMessage);
+                      showToast('Texto da mensagem copiado para a área de transferência!');
+                    }}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copiar Mensagem</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      showToast(`Mensagem de teste disparada para ${selectedMemberForWhatsApp.phone}!`);
+                    }}
+                    className="flex-1 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center space-x-1.5 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Simular Envio ao Sócio</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Coluna Direita: O Mockup Autêntico do WhatsApp (Smartphone Frame) */}
+            <div className="lg:col-span-6 flex justify-center">
+              <div className="w-full max-w-[390px] rounded-[36px] bg-slate-900 p-3 shadow-2xl border-4 border-slate-800">
+                {/* Dynamic Island / Notch do celular */}
+                <div className="w-28 h-4 bg-black rounded-full mx-auto mb-2"></div>
+
+                {/* Tela do Celular com Interface do WhatsApp */}
+                <div className="bg-[#EFEAE2] rounded-[28px] overflow-hidden flex flex-col h-[580px] shadow-inner relative border border-slate-300">
+                  {/* WhatsApp Topbar */}
+                  <div className="bg-[#075E54] text-white px-3.5 py-2.5 flex items-center justify-between shrink-0 shadow-xs">
+                    <div className="flex items-center space-x-2.5">
+                      <ArrowLeft className="w-4 h-4 cursor-pointer text-white/90" />
+                      <div className="w-9 h-9 rounded-full bg-amber-400 text-slate-900 font-bold flex items-center justify-center text-xs shadow-xs">
+                        CM
+                      </div>
+                      <div>
+                        <div className="flex items-center space-x-1">
+                          <span className="font-bold text-xs leading-tight">Clube Maravilha</span>
+                          <span className="w-3 h-3 rounded-full bg-emerald-400 text-[8px] text-slate-900 font-black inline-flex items-center justify-center">
+                            ✓
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-white/80 block leading-tight">
+                          Conta Comercial Oficial
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3 text-white/90">
+                      <Phone className="w-4 h-4" />
+                      <div className="w-1 h-3 flex flex-col justify-between">
+                        <span className="w-1 h-1 bg-white rounded-full"></span>
+                        <span className="w-1 h-1 bg-white rounded-full"></span>
+                        <span className="w-1 h-1 bg-white rounded-full"></span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fundo do Chat (Estilo WhatsApp) */}
+                  <div className="flex-1 p-3.5 overflow-y-auto space-y-3 flex flex-col justify-end">
+                    {/* Badge de Data */}
+                    <div className="text-center my-1">
+                      <span className="px-2.5 py-0.5 rounded-md bg-white/80 text-[10px] font-semibold text-slate-600 shadow-xs">
+                        HOJE
+                      </span>
+                    </div>
+
+                    {/* Aviso de Criptografia do WhatsApp */}
+                    <div className="p-2 rounded-lg bg-[#FCF4CB] text-[#54656F] text-[10px] text-center shadow-xs border border-amber-200/50">
+                      🔒 As mensagens são protegidas com a criptografia de ponta a ponta do WhatsApp Oficial.
+                    </div>
+
+                    {/* Balão da Mensagem Recebida do Clube */}
+                    <div className="self-start max-w-[92%] bg-white rounded-2xl rounded-tl-xs p-3.5 shadow-sm border border-slate-200/60 relative animate-in fade-in zoom-in-95 duration-200">
+                      {/* Logo / Remetente Interno */}
+                      <div className="flex items-center space-x-1.5 pb-1.5 mb-1.5 border-b border-slate-100 text-[10px] text-emerald-700 font-bold">
+                        <span>Clube Maravilha • Secretaria</span>
+                      </div>
+
+                      {/* Texto com formatação WhatsApp */}
+                      <div className="text-xs text-slate-800 leading-relaxed whitespace-pre-line font-sans">
+                        {customMessage}
+                      </div>
+
+                      {/* Hora da mensagem e status */}
+                      <div className="flex items-center justify-end space-x-1 mt-2 text-[10px] text-slate-400">
+                        <span>10:42</span>
+                        <span className="text-sky-500 font-black">✓✓</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* WhatsApp Input Bar Simulado */}
+                  <div className="bg-[#F0F2F5] px-2.5 py-2 flex items-center space-x-2 shrink-0 border-t border-slate-200">
+                    <div className="flex-1 bg-white rounded-full px-3.5 py-1.5 text-xs text-slate-400 border border-slate-200">
+                      Mensagem
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-[#00A884] text-white flex items-center justify-center">
+                      <Send className="w-3.5 h-3.5 ml-0.5" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-center mt-2 text-[11px] text-slate-400">
+                  Visualização da tela do sócio ({selectedMemberForWhatsApp?.phone})
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================
+            ABA 3: RESERVAS DE QUADRAS (SEM CATRACAS)
+        ======================================================== */}
+        {activeTab === 'reservas' && (
+          <div className="space-y-6">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#1B3B54]">Agenda de Reservas de Hoje</h2>
+                <p className="text-xs text-slate-500">
+                  Consulte os horários agendados pelos sócios para as quadras esportivas.
+                </p>
+              </div>
+
+              <div className="flex items-center space-x-2 text-xs">
+                <span className="font-bold text-slate-700">Data:</span>
+                <span className="px-3 py-1.5 rounded-lg bg-slate-100 font-semibold text-slate-800">
+                  Hoje • Sábado
+                </span>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200/90 text-slate-500 font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="py-3 px-4">Horário</th>
+                      <th className="py-3 px-4">Quadra / Espaço</th>
+                      <th className="py-3 px-4">Associado Titular</th>
+                      <th className="py-3 px-4">WhatsApp</th>
+                      <th className="py-3 px-4">Status da Reserva</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    <tr className="hover:bg-slate-50/70">
+                      <td className="py-3.5 px-4 font-bold text-slate-800">08:00 - 09:00</td>
+                      <td className="py-3.5 px-4 font-semibold text-[#1B3B54]">Beach Tennis • Quadra 01</td>
+                      <td className="py-3.5 px-4 font-medium text-slate-800">Schaide Nunes</td>
+                      <td className="py-3.5 px-4 text-slate-500">(75) 99876-5432</td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                          Confirmada
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/70">
+                      <td className="py-3.5 px-4 font-bold text-slate-800">09:00 - 10:00</td>
+                      <td className="py-3.5 px-4 font-semibold text-[#1B3B54]">Tênis de Saibro • Quadra 01</td>
+                      <td className="py-3.5 px-4 font-medium text-slate-800">Roberto Mendes</td>
+                      <td className="py-3.5 px-4 text-slate-500">(75) 99234-5678</td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                          Confirmada
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/70">
+                      <td className="py-3.5 px-4 font-bold text-slate-800">16:00 - 17:00</td>
+                      <td className="py-3.5 px-4 font-semibold text-[#1B3B54]">Beach Tennis • Quadra 02</td>
+                      <td className="py-3.5 px-4 font-medium text-slate-800">Ana Clara Silva</td>
+                      <td className="py-3.5 px-4 text-slate-500">(75) 99123-4567</td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                          Confirmada
+                        </span>
+                      </td>
+                    </tr>
+                    <tr className="hover:bg-slate-50/70">
+                      <td className="py-3.5 px-4 font-bold text-slate-800">18:00 - 19:00</td>
+                      <td className="py-3.5 px-4 font-semibold text-[#1B3B54]">Campo Society 01</td>
+                      <td className="py-3.5 px-4 font-medium text-slate-800">Lucas Fernandes</td>
+                      <td className="py-3.5 px-4 text-slate-500">(75) 99567-8901</td>
+                      <td className="py-3.5 px-4">
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold">
+                          Confirmada
+                        </span>
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -725,290 +992,315 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
           </div>
         )}
 
-        {/* ========================================================================= */}
-        {/* ABA 3: PORTARIA & CATRACAS (WHITELIST OFFLINE) */}
-        {/* ========================================================================= */}
-        {activeTab === 'catracas' && (
-          <div className="space-y-6 animate-in fade-in">
-            <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/90 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <span className="text-xs uppercase font-bold tracking-wider text-[#4E7A9C]">
-                    Tecnologia Anti-Queda de Rede
+        {/* ========================================================
+            ABA 4: VISÃO GERAL & INDICADORES SIMPLES
+        ======================================================== */}
+        {activeTab === 'resumo' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Total de Associados</span>
+                <div className="text-3xl font-black text-[#1B3B54] mt-2">{totalCadastros}</div>
+                <div className="mt-3 text-xs text-emerald-600 font-semibold flex items-center space-x-1">
+                  <span>96% de adimplência este mês</span>
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Receita de Mensalidades</span>
+                <div className="text-3xl font-black text-[#1B3B54] mt-2">R$ 72.300</div>
+                <div className="mt-3 text-xs text-slate-500">
+                  Previsão mensal com base nos planos ativos
+                </div>
+              </div>
+
+              <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">Reservas de Quadras</span>
+                <div className="text-3xl font-black text-[#1B3B54] mt-2">24 hoje</div>
+                <div className="mt-3 text-xs text-emerald-600 font-semibold">
+                  Horários nobres preenchidos
+                </div>
+              </div>
+            </div>
+
+            {/* Avisos do Clube */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-xs space-y-4">
+              <h3 className="font-bold text-[#1B3B54] text-base">Avisos e Comunicação com os Sócios</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <span className="font-bold text-slate-800 block mb-1">Manutenção da Piscina Semiolímpica</span>
+                  <span className="text-slate-500">
+                    Programada para toda terça-feira no turno da manhã. Os associados são avisados automaticamente pelo WhatsApp.
                   </span>
-                  <h3 className="text-xl font-black text-[#1B3B54] mt-0.5">
-                    Operação Offline & Lista Branca das Catracas
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-                    Se a internet externa de Teofilândia oscilar ou cair, a portaria física não trava. A controladora armazena uma cópia sincronizada na memória RAM/flash com integridade criptográfica MD5.
-                  </p>
                 </div>
-
-                {/* Botão de Teste de Queda de Internet */}
-                <button
-                  onClick={() => {
-                    setOfflineSimulated(!offlineSimulated);
-                    showToast(
-                      offlineSimulated
-                        ? 'Conexão restaurada com a nuvem!'
-                        : 'Simulação ativada: Internet Externa Offline! Catraca continua operando 100% via Whitelist local.'
-                    );
-                  }}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer shadow-xs ${
-                    offlineSimulated
-                      ? 'bg-rose-600 text-white hover:bg-rose-700'
-                      : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {offlineSimulated ? (
-                    <>
-                      <WifiOff className="w-4 h-4 text-amber-300 animate-pulse" />
-                      <span>Modo Offline Ativo (Simulado)</span>
-                    </>
-                  ) : (
-                    <>
-                      <Wifi className="w-4 h-4 text-emerald-600" />
-                      <span>Simular Queda de Internet</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Status do Hardware */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-[#1B3B54]">Portaria 01 • Catraca Social Facial</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                      Online • 192.168.1.120
-                    </span>
-                  </div>
-                  <div className="space-y-1.5 text-xs text-slate-600 font-mono">
-                    <div className="flex justify-between">
-                      <span>Último Checksum MD5:</span>
-                      <span className="font-bold text-[#1B3B54]">c98a2f-20260924</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Sócios na Memória Local:</span>
-                      <span className="font-bold text-emerald-700">482 autorizados</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Convidados Válidos Hoje:</span>
-                      <span className="font-bold text-slate-800">8 passes ativos</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm text-[#1B3B54]">Portaria 02 • Catraca de Quadras / Piscina</span>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                      Online • 192.168.1.121
-                    </span>
-                  </div>
-                  <div className="space-y-1.5 text-xs text-slate-600 font-mono">
-                    <div className="flex justify-between">
-                      <span>Último Checksum MD5:</span>
-                      <span className="font-bold text-[#1B3B54]">c98a2f-20260924</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Sócios na Memória Local:</span>
-                      <span className="font-bold text-emerald-700">482 autorizados</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Status da Catraca:</span>
-                      <span className="font-bold text-emerald-700">Operando com 0.28s latência</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* ABA 4: COBRANÇA & WHATSAPP */}
-        {/* ========================================================================= */}
-        {activeTab === 'cobranca' && (
-          <div className="space-y-6 animate-in fade-in">
-            <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/90 shadow-xs space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <span className="text-xs uppercase font-bold tracking-wider text-[#4E7A9C]">
-                    Automação Financeira Sem Atrito
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <span className="font-bold text-slate-800 block mb-1">Torneio de Beach Tennis</span>
+                  <span className="text-slate-500">
+                    Inscrições abertas na secretaria ou direto pelo portal do sócio. 32 duplas confirmadas até o momento.
                   </span>
-                  <h3 className="text-xl font-black text-[#1B3B54] mt-0.5">
-                    Régua Diária de Cobrança com Fila Anti-Ban
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-                    O sistema dispara mensagens automáticas com Pix Copia e Cola diretamente no WhatsApp dos associados, com delays humanizados (3s a 8s) prevenindo qualquer risco de banimento.
-                  </p>
-                </div>
-
-                <button
-                  onClick={handleRunBilling}
-                  disabled={runningBilling}
-                  className="px-4 py-2.5 rounded-xl bg-[#1F3347] hover:bg-[#162737] text-white text-xs font-bold flex items-center space-x-2 transition-all cursor-pointer shadow-xs self-start sm:self-auto"
-                >
-                  <Send className="w-3.5 h-3.5 text-amber-300" />
-                  <span>{runningBilling ? 'Processando Fila...' : 'Executar Régua Agora'}</span>
-                </button>
-              </div>
-
-              {/* 4 Estágios da Régua */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                  <div className="text-xs font-bold text-amber-700 uppercase tracking-wider">Estágio 1 • D-3</div>
-                  <h4 className="font-bold text-sm text-[#1B3B54]">Aviso Preventivo</h4>
-                  <p className="text-xs text-slate-500">
-                    Lembrete amigável enviado 3 dias antes do vencimento da mensalidade.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                  <div className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Estágio 2 • D-0</div>
-                  <h4 className="font-bold text-sm text-[#1B3B54]">Disparo Matinal com Pix</h4>
-                  <p className="text-xs text-slate-500">
-                    Às 08h00 da manhã do dia do vencimento com o código Pix Copia e Cola.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                  <div className="text-xs font-bold text-teal-700 uppercase tracking-wider">Estágio 3 • Pós-Pix</div>
-                  <h4 className="font-bold text-sm text-[#1B3B54]">Recibo Digital Imediato</h4>
-                  <p className="text-xs text-slate-500">
-                    Baixa em menos de 2s com envio do comprovante e confirmação de catraca liberada.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-                  <div className="text-xs font-bold text-rose-700 uppercase tracking-wider">Estágio 4 • D+7</div>
-                  <h4 className="font-bold text-sm text-[#1B3B54]">Bloqueio da Catraca</h4>
-                  <p className="text-xs text-slate-500">
-                    Transição para inadimplente e aviso de bloqueio físico na portaria.
-                  </p>
                 </div>
               </div>
             </div>
           </div>
         )}
+      </main>
 
-        {/* ========================================================================= */}
-        {/* ABA 5: QUADRAS & RESERVAS */}
-        {/* ========================================================================= */}
-        {activeTab === 'quadras' && (
-          <div className="space-y-6 animate-in fade-in">
-            <div className="bg-white p-6 sm:p-7 rounded-3xl border border-slate-200/90 shadow-xs space-y-6">
-              <div>
-                <span className="text-xs uppercase font-bold tracking-wider text-[#4E7A9C]">
-                  Gestão de Estrutura Esportiva
-                </span>
-                <h3 className="text-xl font-black text-[#1B3B54] mt-0.5">
-                  Mapa de Ocupação das Quadras (Hoje)
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Proteção por locks transacionais no PostgreSQL impedindo double-booking.
-                </p>
-              </div>
-
-              {/* Grade de Quadras */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                {[
-                  { name: 'Quadra de Beach Tennis 1', ocupacao: '92%', slots: '11 de 12 horários ocupados', status: 'Alta Demanda' },
-                  { name: 'Quadra de Beach Tennis 2', ocupacao: '85%', slots: '10 de 12 horários ocupados', status: 'Alta Demanda' },
-                  { name: 'Quadra de Tênis Saibro', ocupacao: '75%', slots: '9 de 12 horários ocupados', status: 'Normal' },
-                  { name: 'Campo Society Sintético', ocupacao: '100%', slots: '12 de 12 horários ocupados', status: 'Esgotado' },
-                  { name: 'Quadra Poliesportiva Coberta', ocupacao: '60%', slots: '7 de 12 horários ocupados', status: 'Disponível' },
-                ].map((q, idx) => (
-                  <div key={idx} className="p-5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-sm text-[#1B3B54]">{q.name}</h4>
-                      <span className="px-2 py-0.5 rounded-full bg-slate-200 text-slate-700 text-[10px] font-bold">
-                        {q.status}
-                      </span>
-                    </div>
-                    <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#1B3B54] rounded-full" style={{ width: q.ocupacao }} />
-                    </div>
-                    <div className="flex justify-between text-xs text-slate-500 font-medium">
-                      <span>{q.slots}</span>
-                      <span className="font-bold text-[#1B3B54]">{q.ocupacao}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Modal de Importação de Planilha Excel */}
-      {showImportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl border border-slate-200 p-6 sm:p-7 max-w-lg w-full space-y-5 shadow-2xl">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+      {/* ========================================================
+          MODAL: NOVO ASSOCIADO
+      ======================================================== */}
+      {isNewModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center space-x-2.5">
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center font-bold">
-                  <FileSpreadsheet className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-xl bg-[#1B3B54] text-amber-300 flex items-center justify-center">
+                  <Plus className="w-4 h-4" />
                 </div>
-                <h3 className="font-bold text-base text-[#1B3B54]">Importar Sócios (.xlsx / .csv)</h3>
+                <h3 className="text-base font-bold text-[#1B3B54]">Cadastrar Novo Associado</h3>
               </div>
               <button
-                onClick={() => setShowImportModal(false)}
-                className="text-slate-400 hover:text-slate-700 p-1 rounded-lg"
+                onClick={() => setIsNewModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
               >
-                ✕
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <p className="text-xs text-slate-500">
-              Faça o upload da planilha antiga da secretaria. O parser validará automaticamente os 11 dígitos do CPF por algoritmo e normalizará os números de WhatsApp para o padrão E.164.
-            </p>
+            <form onSubmit={handleSaveNewMember} className="mt-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Nome Completo *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Carlos Eduardo de Oliveira"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C]"
+                />
+              </div>
 
-            <div className="border-2 border-dashed border-slate-200 hover:border-[#1B3B54] rounded-2xl p-6 text-center space-y-2 cursor-pointer transition-colors bg-slate-50">
-              <Upload className="w-8 h-8 text-slate-400 mx-auto" />
-              <div className="text-xs font-bold text-[#1B3B54]">Clique para selecionar ou arraste o arquivo .xlsx</div>
-              <div className="text-[11px] text-slate-400">Suporta colunas: Nome, CPF, WhatsApp, Plano, Vencimento</div>
-            </div>
-
-            {importProgress !== null && (
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-xs text-slate-600 font-bold">
-                  <span>Processando registros no PostgreSQL...</span>
-                  <span>{importProgress}%</span>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">CPF</label>
+                  <input
+                    type="text"
+                    placeholder="000.000.000-00"
+                    value={formData.cpf}
+                    onChange={(e) => setFormData({ ...formData, cpf: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C]"
+                  />
                 </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-emerald-600 rounded-full transition-all duration-300" style={{ width: `${importProgress}%` }} />
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">WhatsApp / Telefone</label>
+                  <input
+                    type="text"
+                    placeholder="(75) 99999-9999"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C]"
+                  />
                 </div>
               </div>
-            )}
 
-            <div className="flex justify-end space-x-2 pt-2">
-              <button
-                onClick={() => setShowImportModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSimulateImport}
-                disabled={importProgress !== null}
-                className="px-5 py-2 rounded-xl bg-[#1F3347] hover:bg-[#162737] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
-              >
-                {importProgress !== null ? 'Importando...' : 'Iniciar Importação'}
-              </button>
-            </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Plano / Categoria</label>
+                  <select
+                    value={formData.plano}
+                    onChange={(e) => setFormData({ ...formData, plano: e.target.value as any })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C] bg-white font-medium"
+                  >
+                    <option value="Sócio Titular">Sócio Titular</option>
+                    <option value="Familiar Ouro">Familiar Ouro</option>
+                    <option value="Individual Esportivo">Individual Esportivo</option>
+                    <option value="Sênior">Sênior</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Dia do Vencimento</label>
+                  <select
+                    value={formData.vencimento}
+                    onChange={(e) => setFormData({ ...formData, vencimento: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C] bg-white font-medium"
+                  >
+                    <option value="Dia 05">Todo dia 05</option>
+                    <option value="Dia 10">Todo dia 10</option>
+                    <option value="Dia 15">Todo dia 15</option>
+                    <option value="Dia 20">Todo dia 20</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">E-mail</label>
+                <input
+                  type="email"
+                  placeholder="socio@email.com"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Observações (opcional)</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Dependentes, esportes preferidos..."
+                  value={formData.observacoes}
+                  onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsNewModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#1B3B54] hover:bg-[#152e42] text-white font-bold cursor-pointer shadow-xs"
+                >
+                  Salvar Cadastro
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* 3. Rodapé do Painel */}
-      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500">
-        <div className="max-w-[1520px] mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <span>Club Maravilha • Sistema de Gestão Integrada & Portaria Inteligente</span>
-          <span className="font-mono text-[11px]">Versão 0.1.0 • Produção Homologada</span>
+      {/* ========================================================
+          MODAL: EDITAR ASSOCIADO
+      ======================================================== */}
+      {editingMember && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center">
+                  <Edit2 className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#1B3B54]">Editar Cadastro</h3>
+                  <span className="text-[11px] text-slate-400 font-mono">{editingMember.matricula}</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setEditingMember(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditMember} className="mt-5 space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Nome Completo</label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">WhatsApp</label>
+                  <input
+                    type="text"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C]"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Status</label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({ ...formData, status: e.target.value as any })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C] bg-white font-medium"
+                  >
+                    <option value="Ativo">Ativo</option>
+                    <option value="Pendente">Pendente</option>
+                    <option value="Inativo">Inativo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Plano</label>
+                  <select
+                    value={formData.plano}
+                    onChange={(e) => setFormData({ ...formData, plano: e.target.value as any })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C] bg-white font-medium"
+                  >
+                    <option value="Sócio Titular">Sócio Titular</option>
+                    <option value="Familiar Ouro">Familiar Ouro</option>
+                    <option value="Individual Esportivo">Individual Esportivo</option>
+                    <option value="Sênior">Sênior</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Vencimento</label>
+                  <select
+                    value={formData.vencimento}
+                    onChange={(e) => setFormData({ ...formData, vencimento: e.target.value })}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C] bg-white font-medium"
+                  >
+                    <option value="Dia 05">Todo dia 05</option>
+                    <option value="Dia 10">Todo dia 10</option>
+                    <option value="Dia 15">Todo dia 15</option>
+                    <option value="Dia 20">Todo dia 20</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">E-mail</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C]"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Observações</label>
+                <input
+                  type="text"
+                  value={formData.observacoes}
+                  onChange={(e) => setFormData({ ...formData, observacoes: e.target.value })}
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:border-[#4E7A9C]"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setEditingMember(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-semibold cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#1B3B54] hover:bg-[#152e42] text-white font-bold cursor-pointer shadow-xs"
+                >
+                  Salvar Alterações
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-      </footer>
+      )}
     </div>
   );
 };

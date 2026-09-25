@@ -9,11 +9,12 @@ import {
   GraduationCap,
   Palmtree,
   Calendar,
-  Info
+  Info,
+  ShieldCheck
 } from 'lucide-react';
 import { ClubeMaravilhaLogo } from '../common/ClubeMaravilhaLogo';
 
-export type PageRoute = 'home' | 'esportes' | 'cursos-esportivos' | 'lazer' | 'usuario';
+export type PageRoute = 'home' | 'esportes' | 'cursos-esportivos' | 'lazer' | 'usuario' | 'admin';
 
 interface NavbarProps {
   onOpenPortal: () => void;
@@ -126,6 +127,13 @@ export const Navbar: React.FC<NavbarProps> = ({
       icon: User,
       action: () => handlePageNavigation('usuario'),
       active: currentPage === 'usuario'
+    },
+    {
+      id: 'admin',
+      label: 'Painel da Diretoria (Admin)',
+      icon: ShieldCheck,
+      action: () => handlePageNavigation('admin'),
+      active: currentPage === 'admin'
     },
     {
       id: 'sobre',

@@ -9,7 +9,8 @@ import {
   Palmtree,
   User,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck
 } from 'lucide-react';
 import { ClubeMaravilhaLogo } from '../common/ClubeMaravilhaLogo';
 import { UserSidebar } from './UserSidebar';
@@ -99,6 +100,12 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
       icon: User,
       action: () => setMenuOpen(false),
       active: true
+    },
+    {
+      id: 'admin',
+      label: 'Painel da Diretoria (Admin)',
+      icon: ShieldCheck,
+      action: () => handlePageNavigation('admin')
     }
   ];
 
@@ -126,8 +133,19 @@ export const UserDashboardPage: React.FC<UserDashboardPageProps> = ({
             </button>
           </div>
 
-          {/* Ações da Direita: Perfil + Menu Hamburguer */}
+          {/* Ações da Direita: Perfil + Atalho Admin + Menu Hamburguer */}
           <div className="flex items-center space-x-3 sm:space-x-4">
+            {onNavigatePage && (
+              <button
+                onClick={() => onNavigatePage('admin')}
+                className="hidden sm:flex items-center space-x-1.5 px-3 py-1.5 rounded-full bg-[#1B3B54] hover:bg-[#152e42] border border-white/20 text-amber-300 hover:text-amber-200 text-xs font-semibold transition-all cursor-pointer shadow-xs"
+                title="Acessar Painel da Diretoria e Catracas"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-400" />
+                <span>Painel da Diretoria</span>
+              </button>
+            )}
+
             {/* Chip de Perfil do Sócio */}
             <div
               onClick={() => setCurrentTab('carteirinha')}

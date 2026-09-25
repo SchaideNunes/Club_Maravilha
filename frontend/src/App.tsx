@@ -13,6 +13,7 @@ import { SportsPage } from './components/sports/SportsPage';
 import { CoursesPage } from './components/sports/CoursesPage';
 import { LeisurePage } from './components/leisure/LeisurePage';
 import { UserDashboardPage } from './components/user/UserDashboardPage';
+import { AdminDashboardPage } from './components/admin/AdminDashboardPage';
 
 export default function App() {
   const [currentPage, setCurrentPage] = useState<PageRoute>('home');
@@ -23,7 +24,9 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.toLowerCase();
-      if (hash.includes('esporte')) {
+      if (hash.includes('admin') || hash.includes('diretoria') || hash.includes('gestao')) {
+        setCurrentPage('admin');
+      } else if (hash.includes('esporte')) {
         setCurrentPage('esportes');
       } else if (hash.includes('curso') || hash.includes('educacao')) {
         setCurrentPage('cursos-esportivos');
@@ -84,8 +87,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] text-[#1F3347] font-sans selection:bg-amber-400 selection:text-slate-900">
-      {/* Rota Especial: Página do Usuário / Dashboard do Associado */}
-      {currentPage === 'usuario' ? (
+      {/* Rota Especial: Painel da Diretoria / Admin */}
+      {currentPage === 'admin' ? (
+        <AdminDashboardPage
+          onBackToHome={() => navigateToPage('home')}
+          onNavigatePage={navigateToPage}
+        />
+      ) : currentPage === 'usuario' ? (
         <UserDashboardPage
           onBackToHome={() => navigateToPage('home')}
           onNavigatePage={navigateToPage}

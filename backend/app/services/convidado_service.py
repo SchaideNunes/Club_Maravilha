@@ -76,7 +76,7 @@ class ConvidadoService:
         # 2. Validação contra Inadimplência
         faturas_vencidas = await self.fatura_repo.list_faturas(
             associado_id=data.associado_titular_id,
-            status=StatusFatura.VENCIDO
+            status=StatusFatura.ATRASADA
         )
         if faturas_vencidas:
             raise HTTPException(

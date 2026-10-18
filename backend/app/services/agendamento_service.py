@@ -65,7 +65,7 @@ class AgendamentoService:
         """
         Cria uma reserva de quadra aplicando travas atômicas e validações de integridade:
         1. Associado deve existir e estar ATIVO.
-        2. Associado não pode ter faturas com status VENCIDO.
+        2. Associado não pode ter faturas com status ATRASADA.
         3. Horário deve ser futuro.
         4. Teto de reservas ativas simultâneas respeitado.
         5. Bloqueio atômico com verificação de sobreposição (SELECT ... FOR UPDATE + Lock).
@@ -87,7 +87,7 @@ class AgendamentoService:
             # 2. Validação contra Inadimplência Financeira
             faturas_vencidas = await self.fatura_repo.list_faturas(
                 associado_id=data.associado_id,
-                status=StatusFatura.VENCIDO
+                status=StatusFatura.ATRASADA
             )
             if faturas_vencidas:
                 raise HTTPException(

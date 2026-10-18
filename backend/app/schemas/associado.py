@@ -4,7 +4,9 @@ Schemas Pydantic v2 para validação e serialização de Associados.
 import uuid
 from datetime import date, datetime
 from typing import List, Optional
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from app.core.config import settings
+from app.core.phone import sanitize_whatsapp_number
 from app.models.associado import StatusAssociado
 
 
@@ -18,7 +20,18 @@ class AssociadoBase(BaseModel):
 
 
 class AssociadoCreate(AssociadoBase):
-    pass
+    dia_vencimento: int = Field(
+        default=settings.DIA_VENCIMENTO_PADRAO,
+        ge=1,
+        le=31,
+        description="Dia do mês em que a mensalidade vence",
+    )
+
+    @field_validator("whatsapp")
+    @classmethod
+    def higienizar_whatsapp(cls, valor: str) -> str:
+        """Grava o WhatsApp no padrão Baileys: somente dígitos com DDI 55."""
+        return sanitize_whatsapp_number(valor)
 
 
 class AssociadoUpdate(BaseModel):
@@ -28,7 +41,24 @@ class AssociadoUpdate(BaseModel):
     foto_url: Optional[str] = None
     status: Optional[StatusAssociado] = None
     limite_reservas_ativas: Optional[int] = Field(None, ge=1, le=5)
+    dia_vencimento: Optional[int] = Field(None, ge=1, le=31)
     observacoes: Optional[str] = None
+
+    @field_validator("whatsapp")
+    @classmethod
+    def higienizar_whatsapp(cls, valor: Optional[str]) -> str:
+        """Grava o WhatsApp no padrão Baileys; o campo é obrigatório no banco, então não aceita null."""
+        if valor is None:
+            raise ValueError("O WhatsApp não pode ser nulo.")
+        return sanitize_whatsapp_number(valor)
+
+    @field_validator("dia_vencimento")
+    @classmethod
+    def dia_vencimento_nao_nulo(cls, valor: Optional[int]) -> int:
+        """O dia de vencimento é obrigatório no banco: pode ser omitido, mas não enviado como null."""
+        if valor is None:
+            raise ValueError("O dia de vencimento não pode ser nulo.")
+        return valor
 
 
 class AssociadoResponse(AssociadoBase):
@@ -37,6 +67,11 @@ class AssociadoResponse(AssociadoBase):
     status: StatusAssociado
     limite_reservas_ativas: int
     data_adesao: date
+    dia_vencimento: int
+    convidados_usados_mes: int = Field(
+        default=0,
+        description="Convites de visitantes usados pelo sócio no mês corrente (exceto cancelados)",
+    )
     created_at: datetime
     updated_at: datetime
 

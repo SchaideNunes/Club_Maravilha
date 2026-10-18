@@ -52,6 +52,9 @@ postgres_data/
 *.sqlite3
 *.db
 
+# WhatsApp engine (Baileys): credenciais da sessão conectada nunca devem ser versionadas
+whatsapp-engine/auth/
+
 # IDE & OS
 .idea/
 .vscode/

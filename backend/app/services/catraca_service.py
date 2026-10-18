@@ -24,15 +24,15 @@ class CatracaService:
     async def get_whitelist(self, data_consulta: Optional[date] = None) -> Dict[str, Any]:
         """
         Gera a Lista Branca (Whitelist) offline autorizada para hoje:
-        1. Associados ATIVOS que NÃO possuam faturas com status VENCIDO.
+        1. Associados ATIVOS que NÃO possuam faturas com status ATRASADA.
         2. Convidados EMITIDOS cuja data de visita seja a data da consulta.
         Retorna também um checksum hash para a catraca detectar se houve alterações.
         """
         hoje = data_consulta or date.today()
 
-        # 1. Subquery para identificar sócios com faturas vencidas
-        subquery_vencidos = select(Fatura.associado_id).where(
-            Fatura.status == StatusFatura.VENCIDO
+        # 1. Subquery para identificar sócios com faturas atrasadas
+        subquery_atrasados = select(Fatura.associado_id).where(
+            Fatura.status == StatusFatura.ATRASADA
         ).scalar_subquery()
 
         # 2. Busca associados ativos e adimplentes
@@ -40,7 +40,7 @@ class CatracaService:
             and_(
                 Associado.status == StatusAssociado.ATIVO,
                 Associado.facial_id.is_not(None),
-                not_(Associado.id.in_(subquery_vencidos))
+                not_(Associado.id.in_(subquery_atrasados))
             )
         )
         res_associados = await self.session.execute(query_associados)

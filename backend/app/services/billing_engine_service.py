@@ -145,7 +145,7 @@ class BillingEngineService:
                         priority=MessagePriority.NORMAL
                     )
                     fatura.notificado_d_plus_7_em = agora
-                    fatura.status = StatusFatura.VENCIDO
+                    fatura.status = StatusFatura.ATRASADA
 
                     # Atualiza o sócio para INADIMPLENTE se ainda estiver ATIVO
                     if fatura.associado.status != StatusAssociado.INADIMPLENTE:

@@ -5,7 +5,9 @@ Segue o princípio de isolamento de persistência da Clean Architecture.
 import uuid
 from typing import List, Optional, Tuple
 from sqlalchemy import func, or_, select
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from app.models.associado import Associado, StatusAssociado
 from app.schemas.associado import AssociadoCreate, AssociadoUpdate
 
@@ -14,8 +16,18 @@ class AssociadoRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def get_by_id(self, associado_id: uuid.UUID) -> Optional[Associado]:
+    async def get_by_id(
+        self,
+        associado_id: uuid.UUID,
+        com_convidados: bool = False
+    ) -> Optional[Associado]:
+        """
+        Busca o associado pelo ID. Com `com_convidados=True` carrega a relação de convidados
+        (necessária para `Associado.convidados_usados_mes` refletir o mês corrente na API).
+        """
         query = select(Associado).where(Associado.id == associado_id)
+        if com_convidados:
+            query = query.options(selectinload(Associado.convidados))
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
@@ -67,7 +79,14 @@ class AssociadoRepository:
         total_result = await self.session.execute(count_query)
         total = total_result.scalar() or 0
 
-        query = base_query.offset(skip).limit(limit).order_by(Associado.nome.asc())
+        # Carrega os convidados da página em uma única query extra (contador de convites do mês)
+        query = (
+            base_query
+            .options(selectinload(Associado.convidados))
+            .offset(skip)
+            .limit(limit)
+            .order_by(Associado.nome.asc())
+        )
         result = await self.session.execute(query)
         items = list(result.scalars().all())
 
@@ -81,6 +100,7 @@ class AssociadoRepository:
             email=associado_in.email,
             foto_url=associado_in.foto_url,
             observacoes=associado_in.observacoes,
+            dia_vencimento=associado_in.dia_vencimento,
             status=StatusAssociado.ATIVO,
         )
         self.session.add(associado)
@@ -95,6 +115,10 @@ class AssociadoRepository:
         self.session.add(associado)
         await self.session.flush()
         await self.session.refresh(associado)
+        # Garante a relação carregada (mesmo se o associado veio de get_by_id sem convidados),
+        # senão `convidados_usados_mes` devolveria 0 na resposta da atualização
+        if "convidados" in sa_inspect(associado).unloaded:
+            await self.session.refresh(associado, attribute_names=["convidados"])
         return associado
 
     async def delete(self, associado_id: uuid.UUID) -> bool:
@@ -132,6 +156,7 @@ class AssociadoRepository:
                 email=m.email,
                 foto_url=m.foto_url,
                 observacoes=m.observacoes,
+                dia_vencimento=m.dia_vencimento,
                 status=StatusAssociado.ATIVO,
             )
             self.session.add(associado)

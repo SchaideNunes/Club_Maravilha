@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     PIX_WEBHOOK_SECRET: str = "mock_webhook_secret_dev"
 
     # WhatsApp (Régua de Cobrança & Fila Anti-Ban)
+    # Motor próprio (Baileys): microsserviço Node/TypeScript em ./whatsapp-engine
+    WHATSAPP_ENGINE_URL: str = "http://localhost:3001"
     WHATSAPP_PROVIDER: str = "EVOLUTION_API"
     WHATSAPP_API_URL: str = "http://localhost:8080"
     WHATSAPP_API_KEY: str = "mock_whatsapp_key"

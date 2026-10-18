@@ -9,7 +9,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.models.associado import StatusAssociado
-from app.models.fatura import Fatura, StatusFatura
+from app.models.fatura import Fatura, StatusFatura, calcular_valor_total_fatura
 from app.repositories.associado_repository import AssociadoRepository
 from app.repositories.convidado_repository import ConvidadoRepository
 from app.repositories.fatura_repository import FaturaRepository
@@ -68,7 +68,7 @@ class FaturaService:
         if excedentes and valor_excedentes == Decimal("0.00"):
             valor_excedentes = sum(c.valor_cobrado for c in excedentes)
 
-        valor_total = data.valor_base + valor_excedentes - data.valor_desconto
+        valor_total = calcular_valor_total_fatura(data.valor_base, valor_excedentes, data.valor_desconto)
 
         # Gera Pix Dinâmico no Gateway com valor total consolidado
         pix_charge = self.pix_gateway.create_dynamic_pix_charge(

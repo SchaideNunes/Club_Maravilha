@@ -14,6 +14,7 @@ Club Maravilha/
 ├── ROADMAP.md                # Planejamento do MVP e próximas fases
 ├── docker/
 │   └── nginx/                # Proxy reverso para produção/staging
+├── whatsapp-engine/          # Motor WhatsApp (Baileys, Node/TypeScript) - placeholder até a Feature 4
 ├── backend/                  # API FastAPI (Python 3.11)
 │   ├── Dockerfile
 │   ├── requirements.txt
@@ -58,6 +59,12 @@ Club Maravilha/
    - **Backend API (FastAPI):** [http://localhost:8000](http://localhost:8000)
    - **Documentação Swagger:** [http://localhost:8000/docs](http://localhost:8000/docs)
    - **Banco de Dados (PostgreSQL 16):** porta `5432`
+   - **Motor WhatsApp (Baileys):** `127.0.0.1:3001` (placeholder até a Feature 4)
+
+   > **Já tem um banco de desenvolvimento criado?** A API cria sozinha as tabelas novas, mas não altera as existentes
+   > (ex.: `associados.dia_vencimento`). Aplique a migração do MVP com
+   > `docker compose exec backend alembic stamp ffc02257a2fe` seguido de
+   > `docker compose exec backend alembic upgrade head`, ou recrie o banco com `docker compose down -v`.
 
 4. **Acompanhar os Logs em Tempo Real:**
    ```bash
@@ -73,8 +80,10 @@ Club Maravilha/
 
 ## 🗄️ 3. Modelagem do Banco de Dados
 
-- **`associados`**: Cadastro de sócios, status (`ATIVO`, `INADIMPLENTE`, `BLOQUEADO`), `facial_id` para catraca e regras de limite de reservas.
-- **`faturas`**: Mensalidades com valor base, taxa de convidados excedentes agregada, `txid` único do Pix dinâmico, QR Code e auditoria de payload de Webhook.
+- **`associados`**: Cadastro de sócios, status (`ATIVO`, `INADIMPLENTE`, `BLOQUEADO`), `facial_id` para catraca, regras de limite de reservas, `dia_vencimento` (1-31) da mensalidade e WhatsApp higienizado no padrão Baileys (somente dígitos com DDI 55). A API expõe `convidados_usados_mes`.
+- **`faturas`**: Mensalidades com valor base, taxa de convidados excedentes agregada, `txid` único do Pix dinâmico, QR Code e auditoria de payload de Webhook. Status: `PENDENTE`, `ATRASADA`, `PAGO`, `CANCELADO`; baixa manual por `PIX`, `CARTAO` ou `DINHEIRO`. Faturas pagas ou canceladas deixam de receber lembretes.
+- **`configuracoes`**: Registro único (singleton, `id = 1`) com mensalidade, franquia e valor do convidado extra, chave Pix, horário/liga-desliga da régua e templates das mensagens de WhatsApp.
+- **`logs_mensagens`**: Auditoria de cada disparo de WhatsApp (destinatário, etapa da régua, texto, sucesso/erro), base da idempotência da régua.
 - **`agendamentos_quadras`**: Reservas para Tênis, Beach Tennis e Futebol com índices compostos para busca rápida e travas contra inadimplência.
 - **`convidados`**: Franquia de até 8 convites mensais gratuitos (reset no dia 1º), geração de token seguro para QR Code temporário e flag de cobrança excedente (R$ 35,00).
 

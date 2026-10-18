@@ -56,7 +56,7 @@ class AssociadoService:
         )
 
     async def get_by_id(self, associado_id: uuid.UUID) -> Associado:
-        associado = await self.repository.get_by_id(associado_id)
+        associado = await self.repository.get_by_id(associado_id, com_convidados=True)
         if not associado:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

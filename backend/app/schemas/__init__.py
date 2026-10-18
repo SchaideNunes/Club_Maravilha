@@ -12,6 +12,7 @@ from app.schemas.associado import (
 )
 from app.schemas.fatura import (
     FaturaBase,
+    FaturaBaixaManual,
     FaturaCreate,
     FaturaResponse,
 )
@@ -25,6 +26,11 @@ from app.schemas.convidado import (
     ConvidadoCreate,
     ConvidadoResponse,
 )
+from app.schemas.configuracao import (
+    ConfiguracaoResponse,
+    ConfiguracaoUpdate,
+)
+from app.schemas.log_mensagem import LogMensagemResponse
 
 __all__ = [
     "AssociadoBase",
@@ -35,6 +41,7 @@ __all__ = [
     "ImportErrorDetail",
     "ImportAssociadosResult",
     "FaturaBase",
+    "FaturaBaixaManual",
     "FaturaCreate",
     "FaturaResponse",
     "AgendamentoBase",
@@ -43,4 +50,7 @@ __all__ = [
     "ConvidadoBase",
     "ConvidadoCreate",
     "ConvidadoResponse",
+    "ConfiguracaoResponse",
+    "ConfiguracaoUpdate",
+    "LogMensagemResponse",
 ]

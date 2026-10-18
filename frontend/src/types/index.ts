@@ -11,12 +11,14 @@ export interface Associado {
   status: StatusAssociado;
   limite_reservas_ativas: number;
   data_adesao: string;
+  dia_vencimento: number;
+  convidados_usados_mes: number;
   created_at: string;
   updated_at: string;
 }
 
-export type StatusFatura = 'PENDENTE' | 'PAGO' | 'CANCELADO' | 'VENCIDO';
-export type FormaPagamento = 'PIX' | 'CARTAO_CREDITO' | 'DINHEIRO' | 'BOLETO';
+export type StatusFatura = 'PENDENTE' | 'ATRASADA' | 'PAGO' | 'CANCELADO';
+export type FormaPagamento = 'PIX' | 'CARTAO' | 'DINHEIRO';
 
 export interface Fatura {
   id: string;

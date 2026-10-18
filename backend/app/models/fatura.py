@@ -4,7 +4,7 @@ Modelo da tabela de Mensalidades / Faturas com suporte a Pix Dinâmico e Webhook
 import enum
 import uuid
 from datetime import date, datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String, Text, JSON, UUID
 from sqlalchemy.dialects.postgresql import JSONB
@@ -18,16 +18,35 @@ if TYPE_CHECKING:
 
 class StatusFatura(str, enum.Enum):
     PENDENTE = "PENDENTE"
+    ATRASADA = "ATRASADA"
     PAGO = "PAGO"
     CANCELADO = "CANCELADO"
-    VENCIDO = "VENCIDO"
 
 
 class FormaPagamento(str, enum.Enum):
+    """Formas de pagamento aceitas, inclusive na baixa manual feita pela administração."""
     PIX = "PIX"
-    CARTAO_CREDITO = "CARTAO_CREDITO"
+    CARTAO = "CARTAO"
     DINHEIRO = "DINHEIRO"
-    BOLETO = "BOLETO"
+
+
+# Faturas nestes status não recebem mais lembretes da régua de cobrança (WhatsApp)
+STATUS_SEM_LEMBRETE = frozenset({StatusFatura.PAGO, StatusFatura.CANCELADO})
+
+_CENTAVOS = Decimal("0.01")
+
+
+def calcular_valor_total_fatura(
+    valor_base: Decimal,
+    valor_convidados_excedentes: Optional[Decimal] = None,
+    valor_desconto: Optional[Decimal] = None,
+) -> Decimal:
+    """
+    Fórmula única do valor líquido da fatura: base + excedentes - desconto,
+    arredondado em centavos. Componentes ausentes (None) valem zero.
+    """
+    total = valor_base + (valor_convidados_excedentes or Decimal("0")) - (valor_desconto or Decimal("0"))
+    return total.quantize(_CENTAVOS, rounding=ROUND_HALF_UP)
 
 
 class Fatura(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -145,6 +164,22 @@ class Fatura(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         "Convidado",
         back_populates="fatura_agregada"
     )
+
+    def calcular_valor_total(self) -> Decimal:
+        """Valor líquido da fatura: valor_base + valor_convidados_excedentes - valor_desconto."""
+        return calcular_valor_total_fatura(
+            self.valor_base,
+            self.valor_convidados_excedentes,
+            self.valor_desconto,
+        )
+
+    @property
+    def lembretes_ativos(self) -> bool:
+        """
+        Indica se a régua de cobrança ainda deve enviar lembretes desta fatura.
+        Os lembretes ficam suspensos quando a fatura está PAGA ou CANCELADA.
+        """
+        return self.status not in STATUS_SEM_LEMBRETE
 
     def __repr__(self) -> str:
         return f"<Fatura(id={self.id}, mes='{self.referencia_mes}', valor={self.valor_total}, status='{self.status}')>"

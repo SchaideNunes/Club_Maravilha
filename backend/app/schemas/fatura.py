@@ -5,8 +5,8 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, ConfigDict, Field
-from app.models.fatura import FormaPagamento, StatusFatura
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+from app.models.fatura import FormaPagamento, StatusFatura, calcular_valor_total_fatura
 
 
 class FaturaBase(BaseModel):
@@ -14,18 +14,53 @@ class FaturaBase(BaseModel):
     valor_base: Decimal = Field(..., gt=0, example=Decimal("150.00"))
     valor_convidados_excedentes: Decimal = Field(default=Decimal("0.00"), ge=0)
     valor_desconto: Decimal = Field(default=Decimal("0.00"), ge=0)
-    valor_total: Decimal = Field(..., gt=0, example=Decimal("150.00"))
     data_vencimento: date
     forma_pagamento: FormaPagamento = FormaPagamento.PIX
 
 
 class FaturaCreate(FaturaBase):
     associado_id: uuid.UUID
+    valor_total: Optional[Decimal] = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Valor líquido (base + excedentes - desconto). Quando omitido é calculado; "
+            "quando informado precisa ser coerente com os demais valores."
+        ),
+        examples=["150.00"],
+    )
+
+    @model_validator(mode="after")
+    def validar_valor_total(self) -> "FaturaCreate":
+        total_calculado = calcular_valor_total_fatura(
+            self.valor_base,
+            self.valor_convidados_excedentes,
+            self.valor_desconto,
+        )
+        if total_calculado <= 0:
+            raise ValueError("O valor total da fatura deve ser maior que zero (desconto excede os valores cobrados).")
+        if self.valor_total is None:
+            self.valor_total = total_calculado
+        elif self.valor_total != total_calculado:
+            raise ValueError(
+                f"valor_total ({self.valor_total}) incoerente: base + excedentes - desconto = {total_calculado}."
+            )
+        return self
+
+
+class FaturaBaixaManual(BaseModel):
+    """Dados da baixa manual de uma fatura pela administração (PIX, CARTAO ou DINHEIRO)."""
+    forma_pagamento: FormaPagamento
+    data_pagamento: Optional[datetime] = Field(
+        default=None,
+        description="Momento do pagamento; quando omitido, o servidor usa o instante atual",
+    )
 
 
 class FaturaResponse(FaturaBase):
     id: uuid.UUID
     associado_id: uuid.UUID
+    valor_total: Decimal
     data_pagamento: Optional[datetime] = None
     status: StatusFatura
     txid: Optional[str] = None

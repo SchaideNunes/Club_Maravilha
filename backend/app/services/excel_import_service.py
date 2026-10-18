@@ -7,6 +7,7 @@ import io
 import re
 from typing import List, Optional, Set, Tuple
 import openpyxl
+from pydantic import ValidationError
 from app.schemas.associado import AssociadoCreate, ImportErrorDetail
 
 
@@ -201,13 +202,22 @@ def parse_excel_or_csv_bytes(
             ))
             continue
 
-        parsed_members.append(AssociadoCreate(
-            nome=nome,
-            cpf=formatted_cpf,
-            whatsapp=norm_phone,
-            email=email_raw,
-            foto_url=foto if foto else None,
-            observacoes=obs if obs else None,
-        ))
+        # 5. Validação final pelo schema (higieniza o WhatsApp para o padrão Baileys: só dígitos com DDI 55)
+        try:
+            parsed_members.append(AssociadoCreate(
+                nome=nome,
+                cpf=formatted_cpf,
+                whatsapp=norm_phone,
+                email=email_raw,
+                foto_url=foto if foto else None,
+                observacoes=obs if obs else None,
+            ))
+        except ValidationError as exc:
+            erro = exc.errors()[0]
+            errors.append(ImportErrorDetail(
+                linha=line_num,
+                campo=str(erro["loc"][0]) if erro["loc"] else "linha",
+                motivo=str(erro["msg"]).removeprefix("Value error, ")
+            ))
 
     return parsed_members, errors

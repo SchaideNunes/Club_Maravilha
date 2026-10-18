@@ -51,10 +51,14 @@ services:
       # Sobrescreve DATABASE_URL caso rode dentro da rede do compose
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}@db:5432/${POSTGRES_DB:-club_maravilha}
       DATABASE_SYNC_URL: postgresql://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}@db:5432/${POSTGRES_DB:-club_maravilha}
-      WHATSAPP_API_URL: http://whatsapp:8080
+      # Motor WhatsApp (Baileys) acessado pela rede interna do compose, com a mesma chave do engine
+      WHATSAPP_ENGINE_URL: http://whatsapp-engine:3001
+      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-club_maravilha_secret_key_123}
     depends_on:
       db:
         condition: service_healthy
+      whatsapp-engine:
+        condition: service_started
     restart: unless-stopped
     networks:
       - club_network
@@ -84,28 +88,24 @@ services:
       - club_network
 
   # ----------------------------------------------------------------------------
-  # [4] EVOLUTION API (WhatsApp Gateway - Baileys)
+  # [4] MOTOR WHATSAPP (Baileys - microsserviço Node/TypeScript próprio)
+  # A sessão autenticada do número fica no volume nomeado whatsapp_auth (/app/auth):
+  # recriar o container não exige novo pareamento por QR Code.
   # ----------------------------------------------------------------------------
-  whatsapp:
-    image: evoapicloud/evolution-api:latest
-    container_name: club_maravilha_whatsapp
-    ports:
-      - "${PORT_WHATSAPP:-8080}:8080"
+  whatsapp-engine:
+    build:
+      context: ./whatsapp-engine
+      dockerfile: Dockerfile
+    container_name: club_maravilha_whatsapp_engine
     environment:
-      - SERVER_URL=http://localhost:8080
-      - SERVER_PORT=8080
-      - AUTHENTICATION_API_KEY=${WHATSAPP_API_KEY:-club_maravilha_secret_key_123}
-      - DATABASE_PROVIDER=postgresql
-      - DATABASE_CONNECTION_URI=postgresql://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}@db:5432/${POSTGRES_DB:-club_maravilha}?schema=evolution
-      - DATABASE_CONNECTION_CLIENT_NAME=club_maravilha_evolution
-      - CACHE_REDIS_ENABLED=false
-      - LOG_LEVEL=ERROR,WARN,INFO
-      - DEL_INSTANCE=false
+      PORT: "3001"
+      API_KEY: ${WHATSAPP_API_KEY:-club_maravilha_secret_key_123}
+      AUTH_DIR: /app/auth
+    ports:
+      # Somente loopback: o engine controla um número de WhatsApp real
+      - "127.0.0.1:${PORT_WHATSAPP_ENGINE:-3001}:3001"
     volumes:
-      - evolution_instances:/evolution/instances
-    depends_on:
-      db:
-        condition: service_healthy
+      - whatsapp_auth:/app/auth
     restart: unless-stopped
     networks:
       - club_network
@@ -116,7 +116,7 @@ services:
 volumes:
   postgres_data:
     driver: local
-  evolution_instances:
+  whatsapp_auth:
     driver: local
 
 networks:

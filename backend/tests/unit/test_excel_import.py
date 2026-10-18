@@ -88,7 +88,8 @@ def test_parse_excel_bytes_valid_and_invalid_rows():
     assert len(rows) == 2
     assert rows[0].nome == "Carlos Silva"
     assert rows[0].cpf == "529.982.247-25"
-    assert rows[0].whatsapp == "+5511999991111"
+    # WhatsApp higienizado para o padrão Baileys (só dígitos com DDI 55, sem '+')
+    assert rows[0].whatsapp == "5511999991111"
     assert rows[1].nome == "Mariana Lima"
 
     # Espera 2 erros reportados com linha identificada (linha 3 CPF inválido e linha 4 CPF duplicado)

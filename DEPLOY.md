@@ -65,7 +65,7 @@ nano .env
 4. `POSTGRES_PASSWORD`: Defina uma senha forte para o banco.
 5. `ALLOWED_ORIGINS`: Coloque o domínio do clube (ex: `https://clubmaravilha.com.br,https://www.clubmaravilha.com.br`).
 6. `PIX_WEBHOOK_SECRET`: Chave secreta compartilhada com a Efí (Gerencianet).
-7. `WHATSAPP_API_URL` e `WHATSAPP_API_KEY`: Dados da sua instância da Evolution API.
+7. `WHATSAPP_API_KEY`: Chave compartilhada entre o backend e o motor de WhatsApp próprio (`whatsapp-engine`, baseado em Baileys). Defina um valor forte. O backend já acessa o motor pela rede interna (`WHATSAPP_ENGINE_URL=http://whatsapp-engine:3001`, definido no compose). A sessão do número conectado fica no volume Docker `whatsapp_auth`: não o apague (`docker compose down -v`), ou será preciso ler o QR Code novamente.
 
 Salve o arquivo (`Ctrl + O`, depois `Enter`, depois `Ctrl + X`).
 

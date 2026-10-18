@@ -70,7 +70,7 @@ class FaturaRepository:
             select(Fatura)
             .options(joinedload(Fatura.associado))
             .where(
-                Fatura.status.in_([StatusFatura.PENDENTE, StatusFatura.VENCIDO]),
+                Fatura.status.in_([StatusFatura.PENDENTE, StatusFatura.ATRASADA]),
                 Fatura.data_vencimento == data_vencimento,
                 col.is_(None)
             )

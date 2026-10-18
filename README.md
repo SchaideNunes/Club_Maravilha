@@ -62,9 +62,8 @@ Club Maravilha/
    - **Motor WhatsApp (Baileys):** `127.0.0.1:3001` (placeholder até a Feature 4)
 
    > **Já tem um banco de desenvolvimento criado?** A API cria sozinha as tabelas novas, mas não altera as existentes
-   > (ex.: `associados.dia_vencimento`). Aplique a migração do MVP com
-   > `docker compose exec backend alembic stamp ffc02257a2fe` seguido de
-   > `docker compose exec backend alembic upgrade head`, ou recrie o banco com `docker compose down -v`.
+   > (ex.: `associados.dia_vencimento`). Aplique as migrações com
+   > `docker compose exec backend python -m scripts.migrate`, ou recrie o banco com `docker compose down -v`.
 
 4. **Acompanhar os Logs em Tempo Real:**
    ```bash

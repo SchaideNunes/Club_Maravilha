@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     PORT_BACKEND: int = 8000
     
+    # Agendador (APScheduler) e worker da fila anti-ban de WhatsApp rodam dentro do processo da API.
+    # Mantenha ligado em um único processo: vários workers/réplicas com isto ligado duplicam a
+    # régua de cobrança e os envios (em produção usamos --workers 1).
+    SCHEDULER_ENABLED: bool = True
+
     # CORS
     ALLOWED_ORIGINS: Union[str, List[str]] = "http://localhost:5173,http://127.0.0.1:5173"
 

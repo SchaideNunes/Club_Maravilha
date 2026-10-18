@@ -15,7 +15,7 @@ services:
     container_name: club_maravilha_db_prod
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-club_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
       POSTGRES_DB: ${POSTGRES_DB:-club_maravilha}
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -30,25 +30,29 @@ services:
       - club_network
 
   # ----------------------------------------------------------------------------
-  # [2] BACKEND API (FastAPI + 2 Workers Uvicorn + Migrações Automáticas)
+  # [2] BACKEND API (FastAPI + 1 Worker Uvicorn + Migrações Automáticas)
   # ----------------------------------------------------------------------------
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: club_maravilha_backend_prod
-    # Executa migrações do Alembic antes de subir os workers de produção
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2"
+    # Antes de subir a API, scripts.migrate prepara o banco: banco vazio -> create_all + alembic stamp head;
+    # banco existente -> alembic upgrade head. Falhou? A API não sobe (&&).
+    # Um único worker: o APScheduler (régua de cobrança) e a fila anti-ban de WhatsApp rodam
+    # dentro do processo da API, e vários workers duplicariam disparos. Só aumente --workers se
+    # SCHEDULER_ENABLED ficar ligado em um único processo.
+    command: sh -c "python -m scripts.migrate && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
     env_file:
       - .env
     environment:
       ENVIRONMENT: production
       DEBUG: "false"
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}@db:5432/${POSTGRES_DB:-club_maravilha}
-      DATABASE_SYNC_URL: postgresql://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}@db:5432/${POSTGRES_DB:-club_maravilha}
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}@db:5432/${POSTGRES_DB:-club_maravilha}
+      DATABASE_SYNC_URL: postgresql://${POSTGRES_USER:-club_admin}:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}@db:5432/${POSTGRES_DB:-club_maravilha}
       # Motor WhatsApp (Baileys) acessado pela rede interna do compose, com a mesma chave do engine
       WHATSAPP_ENGINE_URL: http://whatsapp-engine:3001
-      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-club_maravilha_secret_key_123}
+      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:?defina WHATSAPP_API_KEY no .env}
     depends_on:
       db:
         condition: service_healthy
@@ -84,7 +88,7 @@ services:
     container_name: club_maravilha_whatsapp_engine_prod
     environment:
       PORT: "3001"
-      API_KEY: ${WHATSAPP_API_KEY:-club_maravilha_secret_key_123}
+      API_KEY: ${WHATSAPP_API_KEY:?defina WHATSAPP_API_KEY no .env}
       AUTH_DIR: /app/auth
     volumes:
       - whatsapp_auth:/app/auth

@@ -13,7 +13,11 @@ from app.core.database import async_engine
 from app.models.base import Base
 
 
-from app.jobs.billing_scheduler import start_scheduler_and_worker, stop_scheduler_and_worker
+from app.jobs.billing_scheduler import (
+    scheduler_habilitado,
+    start_scheduler_and_worker,
+    stop_scheduler_and_worker,
+)
 
 
 @asynccontextmanager
@@ -26,17 +30,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     async with async_engine.begin() as conn:
         # Criação inicial de tabelas para dev/MVP
         await conn.run_sync(Base.metadata.create_all)
-    
-    # Inicia scheduler e worker em segundo plano (exceto em modo de teste automatizado isolado)
-    if settings.ENVIRONMENT != "test":
+
+    # Inicia scheduler e worker em segundo plano, exceto em modo de teste ou com SCHEDULER_ENABLED=false
+    executar_agendador = scheduler_habilitado()
+    if executar_agendador:
         start_scheduler_and_worker()
 
     yield
-    
+
     # Finalização de recursos na desconexão
-    if settings.ENVIRONMENT != "test":
+    if executar_agendador:
         await stop_scheduler_and_worker()
-        
+
     await async_engine.dispose()
 
 

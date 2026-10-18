@@ -7,6 +7,7 @@ import logging
 from typing import Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.services.billing_engine_service import BillingEngineService
 from app.services.whatsapp_queue_service import get_global_whatsapp_queue
@@ -16,6 +17,15 @@ logger = logging.getLogger(__name__)
 # Instâncias globais gerenciadas pelo ciclo de vida da aplicação
 scheduler: Optional[AsyncIOScheduler] = None
 worker_task: Optional[asyncio.Task] = None
+
+
+def scheduler_habilitado() -> bool:
+    """
+    Indica se este processo deve rodar o agendador e o worker da fila de WhatsApp:
+    nunca no modo de teste e somente com SCHEDULER_ENABLED ligado, para que apenas um
+    processo dispare a régua de cobrança e consuma a fila anti-ban.
+    """
+    return settings.ENVIRONMENT != "test" and settings.SCHEDULER_ENABLED
 
 
 async def executar_rotina_diaria_cobranca() -> None:

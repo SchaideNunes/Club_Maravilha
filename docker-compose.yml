@@ -19,7 +19,8 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-club_secret_password_change_in_prod}
       POSTGRES_DB: ${POSTGRES_DB:-club_maravilha}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Somente loopback: o banco de desenvolvimento não deve ficar exposto na rede local
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

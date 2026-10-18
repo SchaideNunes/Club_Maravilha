@@ -62,10 +62,10 @@ nano .env
 1. `ENVIRONMENT=production`
 2. `DEBUG=false`
 3. `SECRET_KEY`: Gere uma chave aleatória forte rodando `openssl rand -hex 32` no terminal.
-4. `POSTGRES_PASSWORD`: Defina uma senha forte para o banco.
+4. `POSTGRES_PASSWORD`: Defina uma senha forte para o banco. **Obrigatória**: o `docker-compose.prod.yml` não sobe sem ela.
 5. `ALLOWED_ORIGINS`: Coloque o domínio do clube (ex: `https://clubmaravilha.com.br,https://www.clubmaravilha.com.br`).
 6. `PIX_WEBHOOK_SECRET`: Chave secreta compartilhada com a Efí (Gerencianet).
-7. `WHATSAPP_API_KEY`: Chave compartilhada entre o backend e o motor de WhatsApp próprio (`whatsapp-engine`, baseado em Baileys). Defina um valor forte. O backend já acessa o motor pela rede interna (`WHATSAPP_ENGINE_URL=http://whatsapp-engine:3001`, definido no compose). A sessão do número conectado fica no volume Docker `whatsapp_auth`: não o apague (`docker compose down -v`), ou será preciso ler o QR Code novamente.
+7. `WHATSAPP_API_KEY`: Chave compartilhada entre o backend e o motor de WhatsApp próprio (`whatsapp-engine`, baseado em Baileys). Defina um valor forte. **Obrigatória**: o `docker-compose.prod.yml` não sobe sem ela. O backend já acessa o motor pela rede interna (`WHATSAPP_ENGINE_URL=http://whatsapp-engine:3001`, definido no compose). A sessão do número conectado fica no volume Docker `whatsapp_auth`: não o apague (`docker compose down -v`), ou será preciso ler o QR Code novamente.
 
 Salve o arquivo (`Ctrl + O`, depois `Enter`, depois `Ctrl + X`).
 
@@ -80,8 +80,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 
 O comando irá:
 1. Subir o PostgreSQL 16 Alpine com volume persistente.
-2. Executar as migrações automáticas do banco (`alembic upgrade head`).
-3. Iniciar a API FastAPI com 2 workers assíncronos.
+2. Preparar o banco automaticamente com `python -m scripts.migrate`: em um banco **novo** (primeira instalação) cria todas as tabelas a partir dos modelos e marca o banco como atualizado (`alembic stamp head`); em um banco **existente** aplica as migrações pendentes (`alembic upgrade head`). Se esta etapa falhar, a API não sobe.
+3. Iniciar a API FastAPI com **1 worker**: o agendador da régua de cobrança e a fila anti-ban de WhatsApp rodam dentro do processo da API, e mais de um worker duplicaria os disparos (`SCHEDULER_ENABLED` controla se o processo executa o agendador).
 4. Compilar o Frontend React SPA em build estático otimizado.
 5. Iniciar o Nginx servindo o Frontend e redirecionando a API `/api/` e os Webhooks.
 

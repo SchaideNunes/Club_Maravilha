@@ -61,13 +61,16 @@ class Settings(BaseSettings):
     # WhatsApp (Régua de Cobrança & Fila Anti-Ban)
     # Motor próprio (Baileys): microsserviço Node/TypeScript em ./whatsapp-engine
     WHATSAPP_ENGINE_URL: str = "http://localhost:3001"
-    WHATSAPP_PROVIDER: str = "EVOLUTION_API"
+    # MOCK (padrão) apenas registra as mensagens em memória e NÃO envia nada; EVOLUTION_API é legado
+    # e só vale se informado explicitamente. A integração com o motor Baileys chega na Feature 4.
+    WHATSAPP_PROVIDER: str = "MOCK"
     WHATSAPP_API_URL: str = "http://localhost:8080"
     WHATSAPP_API_KEY: str = "mock_whatsapp_key"
     WHATSAPP_INSTANCE_NAME: str = "club_maravilha_instance"
     WHATSAPP_QUEUE_ENABLED: bool = True
-    WHATSAPP_MIN_DELAY_SECONDS: float = 3.0
-    WHATSAPP_MAX_DELAY_SECONDS: float = 8.0
+    # Intervalo aleatório (jitter) entre envios consecutivos, em segundos (padrão anti-ban do briefing)
+    WHATSAPP_MIN_DELAY_SECONDS: float = 8.0
+    WHATSAPP_MAX_DELAY_SECONDS: float = 20.0
 
     # Catraca Facial
     TURNSTILE_HOST: str = "127.0.0.1"

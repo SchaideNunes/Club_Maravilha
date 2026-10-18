@@ -267,8 +267,38 @@ class EvolutionApiWhatsAppProvider(WhatsAppProvider):
                 }
 
 
+PROVEDORES_ACEITOS = ("MOCK", "EVOLUTION_API")
+
+
 def get_whatsapp_provider(provider_type: Optional[str] = None) -> WhatsAppProvider:
-    tipo = (provider_type or settings.WHATSAPP_PROVIDER).upper()
-    if tipo == "MOCK" or tipo == "TEST":
+    """
+    Instancia o provedor de WhatsApp configurado (WHATSAPP_PROVIDER).
+    O padrão é MOCK (não envia nada); EVOLUTION_API só é usado quando informado explicitamente.
+
+    Raises:
+        ValueError: quando o provedor informado for desconhecido (evita cair silenciosamente em outro provedor).
+    """
+    tipo = (provider_type or settings.WHATSAPP_PROVIDER).strip().upper()
+    if tipo in ("MOCK", "TEST"):
         return MockWhatsAppProvider()
-    return EvolutionApiWhatsAppProvider()
+    if tipo == "EVOLUTION_API":
+        return EvolutionApiWhatsAppProvider()
+    raise ValueError(
+        f"Provedor de WhatsApp desconhecido: '{tipo}'. "
+        f"Valores aceitos em WHATSAPP_PROVIDER: {', '.join(PROVEDORES_ACEITOS)}."
+    )
+
+
+def check_whatsapp_provider_on_startup() -> None:
+    """
+    Validação executada no startup da API:
+    - um WHATSAPP_PROVIDER desconhecido interrompe a subida (ValueError), em vez de falhar no primeiro envio;
+    - o provedor MOCK em produção gera um aviso, pois as mensagens são apenas registradas em memória.
+    """
+    provider = get_whatsapp_provider()
+    if isinstance(provider, MockWhatsAppProvider) and settings.ENVIRONMENT == "production":
+        logger.warning(
+            "[WhatsApp] WHATSAPP_PROVIDER=MOCK com ENVIRONMENT=production: nenhuma mensagem será enviada "
+            "(a régua de cobrança e os recibos apenas serão registrados em memória). "
+            "Configure um provedor real quando a integração com o motor Baileys estiver disponível."
+        )

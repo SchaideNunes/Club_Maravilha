@@ -4,6 +4,13 @@ Testes de integração para os endpoints da API de WhatsApp e conexão de instâ
 import pytest
 from httpx import AsyncClient
 from unittest.mock import AsyncMock, patch
+from app.core.config import settings
+
+
+@pytest.fixture(autouse=True)
+def provedor_evolution_explicito(monkeypatch):
+    """O padrão de WHATSAPP_PROVIDER agora é MOCK; estes testes exercitam o Evolution, que só vale se explícito."""
+    monkeypatch.setattr(settings, "WHATSAPP_PROVIDER", "EVOLUTION_API")
 
 
 @pytest.mark.asyncio

@@ -18,6 +18,7 @@ from app.jobs.billing_scheduler import (
     start_scheduler_and_worker,
     stop_scheduler_and_worker,
 )
+from app.services.whatsapp_service import check_whatsapp_provider_on_startup
 
 
 @asynccontextmanager
@@ -27,6 +28,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     No MVP, cria automaticamente as tabelas caso não existam (facilita setup de dev).
     Inicia o APScheduler e o consumidor anti-ban da fila de WhatsApp.
     """
+    # Falha rápido com WHATSAPP_PROVIDER inválido e avisa quando o provedor MOCK está em produção
+    check_whatsapp_provider_on_startup()
+
     async with async_engine.begin() as conn:
         # Criação inicial de tabelas para dev/MVP
         await conn.run_sync(Base.metadata.create_all)

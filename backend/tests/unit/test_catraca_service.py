@@ -51,7 +51,7 @@ async def test_catraca_whitelist_filtering(db_session: AsyncSession):
         valor_base=150.0,
         valor_total=150.0,
         data_vencimento=hoje - timedelta(days=5),
-        status=StatusFatura.VENCIDO
+        status=StatusFatura.ATRASADA
     )
     db_session.add(fatura_vencida)
 

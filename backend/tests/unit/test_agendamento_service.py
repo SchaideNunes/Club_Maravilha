@@ -92,7 +92,7 @@ async def test_create_agendamento_fatura_vencida_blocked(db_session: AsyncSessio
         valor_base=150.0,
         valor_total=150.0,
         data_vencimento=datetime.now(timezone.utc).date() - timedelta(days=5),
-        status=StatusFatura.VENCIDO
+        status=StatusFatura.ATRASADA
     )
     db_session.add(fatura_vencida)
     await db_session.commit()

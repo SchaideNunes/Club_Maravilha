@@ -129,7 +129,7 @@ async def test_billing_engine_stages_and_idempotency(db_session: AsyncSession):
     assert fat_d0.notificado_d_zero_em is not None
     assert fat_dp3.notificado_d_plus_3_em is not None
     assert fat_dp7.notificado_d_plus_7_em is not None
-    assert fat_dp7.status == StatusFatura.VENCIDO
+    assert fat_dp7.status == StatusFatura.ATRASADA
     assert socio_dp7.status == StatusAssociado.INADIMPLENTE
 
     # 4. Teste de Idempotência: Executar novamente no mesmo dia não deve reenviar nada

@@ -1,15 +1,24 @@
 """
 Fila assíncrona anti-ban para WhatsApp com priorização e delay humanizado (Rate Limiting).
 Evita bloqueio de chip e banimento por disparo em rajada (bursting).
+Registra auditoria de disparos (LogMensagem) quando log_context é fornecido.
 """
 import asyncio
+from dataclasses import dataclass, field
 import enum
 import logging
 import random
+import re
 import time
-from dataclasses import dataclass, field
 from typing import Any, Dict, Optional
+import uuid
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
 from app.core.config import settings
+from app.core.database import AsyncSessionLocal
+from app.core.phone import sanitize_whatsapp_number
+from app.models.log_mensagem import EtapaRegua, LogMensagem, StatusEnvio
 from app.services.whatsapp_service import WhatsAppProvider, get_whatsapp_provider
 
 logger = logging.getLogger(__name__)
@@ -20,12 +29,20 @@ class MessagePriority(enum.IntEnum):
     NORMAL = 1   # Ex: Régua matinal D-3, D-0, D+3, D+7
 
 
+@dataclass
+class LogContext:
+    etapa: EtapaRegua
+    associado_id: Optional[uuid.UUID] = None
+    fatura_id: Optional[uuid.UUID] = None
+
+
 @dataclass(order=True)
 class WhatsAppQueueItem:
     priority: int
     timestamp: float
     phone: str = field(compare=False)
     message: str = field(compare=False)
+    log_context: Optional[LogContext] = field(default=None, compare=False)
 
 
 class WhatsAppQueueService:
@@ -39,6 +56,7 @@ class WhatsAppQueueService:
         provider: Optional[WhatsAppProvider] = None,
         min_delay_seconds: Optional[float] = None,
         max_delay_seconds: Optional[float] = None,
+        session_factory: Optional[async_sessionmaker[AsyncSession]] = None,
     ) -> None:
         self.provider = provider or get_whatsapp_provider()
         self.min_delay = (
@@ -51,6 +69,7 @@ class WhatsAppQueueService:
             if max_delay_seconds is not None
             else settings.WHATSAPP_MAX_DELAY_SECONDS
         )
+        self.session_factory = session_factory or AsyncSessionLocal
         self._queue: asyncio.PriorityQueue[WhatsAppQueueItem] = asyncio.PriorityQueue()
         self._is_running: bool = False
         self._worker_task: Optional[asyncio.Task] = None
@@ -63,14 +82,16 @@ class WhatsAppQueueService:
         self,
         phone: str,
         message: str,
-        priority: MessagePriority = MessagePriority.NORMAL
+        priority: MessagePriority = MessagePriority.NORMAL,
+        log_context: Optional[LogContext] = None,
     ) -> None:
-        """Enfileira uma mensagem com prioridade definida."""
+        """Enfileira uma mensagem com prioridade e contexto de log opcionais."""
         item = WhatsAppQueueItem(
             priority=int(priority),
             timestamp=time.time(),
             phone=phone,
-            message=message
+            message=message,
+            log_context=log_context,
         )
         await self._queue.put(item)
         logger.info(
@@ -86,9 +107,12 @@ class WhatsAppQueueService:
             return None
 
         result = None
+        erro_msg: Optional[str] = None
         try:
             logger.info(f"[WhatsAppQueue] Despachando mensagem para {item.phone}...")
             result = await self.provider.send_message(item.phone, item.message)
+            if isinstance(result, dict) and result.get("status") == "error":
+                erro_msg = str(result.get("error") or "Erro retornado pelo provedor WhatsApp")
 
             # Delay humanizado anti-ban (somente se min_delay > 0)
             if self.max_delay > 0:
@@ -97,10 +121,37 @@ class WhatsAppQueueService:
                 await asyncio.sleep(delay)
         except Exception as err:
             logger.error(f"[WhatsAppQueue] Erro ao processar mensagem para {item.phone}: {err}")
+            erro_msg = str(err)
         finally:
+            if item.log_context is not None:
+                await self._gravar_log(item, erro_msg)
             self._queue.task_done()
 
         return result
+
+    async def _gravar_log(self, item: WhatsAppQueueItem, erro_msg: Optional[str]) -> None:
+        """Grava registro de auditoria na tabela logs_mensagens."""
+        try:
+            try:
+                destinatario = sanitize_whatsapp_number(item.phone)
+            except Exception:
+                destinatario = re.sub(r"\D", "", str(item.phone))
+
+            status = StatusEnvio.ERRO if erro_msg else StatusEnvio.SUCESSO
+            log = LogMensagem(
+                associado_id=item.log_context.associado_id,
+                fatura_id=item.log_context.fatura_id,
+                destinatario=destinatario,
+                etapa=item.log_context.etapa,
+                mensagem=item.message,
+                status=status,
+                erro=erro_msg,
+            )
+            async with self.session_factory() as session:
+                session.add(log)
+                await session.commit()
+        except Exception as err:
+            logger.error(f"[WhatsAppQueue] Falha ao registrar LogMensagem: {err}", exc_info=True)
 
     async def start_worker(self) -> None:
         """Loop contínuo do consumidor da fila."""

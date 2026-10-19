@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from app.core import clock
 from app.models.fatura import FormaPagamento, StatusFatura, calcular_valor_total_fatura
 
 # Tolerância para a diferença de relógio entre o navegador da administração e o servidor
@@ -66,7 +67,8 @@ class FaturaBaixaManual(BaseModel):
         if valor is None:
             return valor
         instante = valor if valor.tzinfo else valor.replace(tzinfo=timezone.utc)
-        if instante > datetime.now(timezone.utc) + TOLERANCIA_RELOGIO:
+        agora = clock.agora_clube().astimezone(timezone.utc)
+        if instante > agora + TOLERANCIA_RELOGIO:
             raise ValueError("A data do pagamento não pode estar no futuro.")
         return valor
 
@@ -75,6 +77,9 @@ class FaturaResponse(FaturaBase):
     id: uuid.UUID
     associado_id: uuid.UUID
     valor_total: Decimal
+    convites_usados: int = 0
+    convites_extras: int = 0
+    lembretes_ativos: bool = True
     data_pagamento: Optional[datetime] = None
     status: StatusFatura
     txid: Optional[str] = None
@@ -101,3 +106,57 @@ class BillingExecutionReport(BaseModel):
     inadimplentes_atualizados: int = 0
     total_enfileirados: int = 0
     erros: list[str] = []
+
+
+class GeracaoFaturasRequest(BaseModel):
+    """Payload opcional para disparo de geração de faturas de um mês."""
+    referencia_mes: Optional[str] = Field(
+        default=None,
+        pattern=r"^\d{4}-(0[1-9]|1[0-2])$",
+        description="Mês de referência no formato AAAA-MM (ex: 2026-11)",
+    )
+
+
+class GeracaoFaturasResponse(BaseModel):
+    """Resultado da geração em lote de faturas do mês."""
+    referencia_mes: str
+    criadas: int
+    ja_existentes: int
+    total: int
+
+
+class MarcarAtrasadasResponse(BaseModel):
+    """Resultado da rotina de marcação de faturas atrasadas."""
+    data_referencia: date
+    atualizadas: int
+
+
+class FaturaPainelItemResponse(BaseModel):
+    """Item resumido da fatura para listagem paginada no painel administrativo."""
+    id: uuid.UUID
+    associado_id: uuid.UUID
+    associado_nome: str
+    referencia_mes: str
+    data_vencimento: date
+    valor_base: Decimal
+    valor_convidados_excedentes: Decimal
+    valor_desconto: Decimal
+    valor_total: Decimal
+    convites_usados: int
+    convites_extras: int
+    status: StatusFatura
+    forma_pagamento: Optional[FormaPagamento] = None
+    data_pagamento: Optional[datetime] = None
+    lembretes_ativos: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PaginatedFaturasResponse(BaseModel):
+    """Resposta paginada da listagem de faturas."""
+    items: list[FaturaPainelItemResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+

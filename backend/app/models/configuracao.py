@@ -27,31 +27,31 @@ VARIAVEIS_TEMPLATE = (
 TEMPLATE_D_MENOS_3_PADRAO = (
     "Olá, {nome}! Sua mensalidade do Club Maravilha vence em {vencimento}.\n\n"
     "Resumo da fatura:\n"
-    "- Mensalidade: R$ {valor_base}\n"
+    "- Mensalidade: {valor_base}\n"
     "- Convites usados no mês: {convites_usados} ({convites_extras} excedente(s))\n"
-    "- Total: R$ {valor_total}\n\n"
+    "- Total: {valor_total}\n\n"
     "Para pagar via Pix, use a chave: {chave_pix}\n\n"
     "Qualquer dúvida, é só responder esta mensagem."
 )
 
 TEMPLATE_D0_PADRAO = (
     "Bom dia, {nome}! Sua mensalidade do Club Maravilha vence hoje ({vencimento}).\n\n"
-    "Valor total: R$ {valor_total}\n"
-    "(Mensalidade R$ {valor_base} + {convites_extras} convite(s) excedente(s))\n\n"
+    "Valor total: {valor_total}\n"
+    "(Mensalidade {valor_base} + {convites_extras} convite(s) excedente(s))\n\n"
     "Pague via Pix usando a chave:\n"
     "{chave_pix}\n\n"
     "Assim que o pagamento for confirmado, você receberá o recibo por aqui."
 )
 
 TEMPLATE_RECIBO_PADRAO = (
-    "Olá, {nome}! Recebemos o pagamento da sua mensalidade no valor de R$ {valor_total}.\n\n"
+    "Olá, {nome}! Recebemos o pagamento da sua mensalidade no valor de {valor_total}.\n\n"
     "Seu acesso ao Club Maravilha está regularizado. Obrigado e até breve!"
 )
 
 TEMPLATE_D_MAIS_3_PADRAO = (
     "Olá, {nome}! Identificamos que a sua mensalidade do Club Maravilha, "
     "com vencimento em {vencimento}, ainda está em aberto.\n\n"
-    "Valor total: R$ {valor_total}\n"
+    "Valor total: {valor_total}\n"
     "Chave Pix: {chave_pix}\n\n"
     "Se você já pagou, por favor desconsidere esta mensagem."
 )
@@ -59,7 +59,7 @@ TEMPLATE_D_MAIS_3_PADRAO = (
 TEMPLATE_D_MAIS_7_PADRAO = (
     "Atenção, {nome}! Sua mensalidade do Club Maravilha (vencimento em {vencimento}) "
     "está em atraso há 7 dias e o seu acesso ao clube será bloqueado até a regularização.\n\n"
-    "Valor total: R$ {valor_total}\n"
+    "Valor total: {valor_total}\n"
     "Chave Pix: {chave_pix}\n\n"
     "Após o pagamento, a liberação é imediata. Se precisar de ajuda, responda esta mensagem."
 )

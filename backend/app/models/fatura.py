@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Numeric, String, Text, JSON, UUID
+from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, JSON, UUID
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -56,6 +56,13 @@ class Fatura(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     geração de Pix dinâmico com txid exclusivo e auditoria de webhooks.
     """
     __tablename__ = "faturas"
+    __table_args__ = (
+        UniqueConstraint(
+            "associado_id",
+            "referencia_mes",
+            name="uq_faturas_associado_referencia_mes",
+        ),
+    )
 
     associado_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -92,6 +99,18 @@ class Fatura(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Numeric(10, 2),
         nullable=False,
         comment="Valor final líquido da fatura (base + excedentes - desconto)"
+    )
+    convites_usados: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Quantidade total de convites utilizados no mês anterior"
+    )
+    convites_extras: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Quantidade de convites excedentes cobrados nesta fatura"
     )
     
     data_vencimento: Mapped[date] = mapped_column(Date, nullable=False, index=True)

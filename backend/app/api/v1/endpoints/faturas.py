@@ -1,38 +1,52 @@
 """
-Endpoints da API v1 para Gestão de Faturas, Mensalidades e Pix Dinâmico.
+Endpoints da API v1 para Gestão de Faturas, Mensalidades, Geração Mensal e Baixa Manual.
 """
-import uuid
 from datetime import date
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, Query, status
+import uuid
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.clock import hoje_clube
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.fatura import StatusFatura
-from app.schemas.fatura import BillingExecutionReport, FaturaCreate, FaturaResponse
+from app.schemas.fatura import (
+    BillingExecutionReport,
+    FaturaBaixaManual,
+    FaturaCreate,
+    FaturaResponse,
+    GeracaoFaturasRequest,
+    GeracaoFaturasResponse,
+    MarcarAtrasadasResponse,
+    PaginatedFaturasResponse,
+)
 from app.services.billing_engine_service import BillingEngineService
 from app.services.fatura_service import FaturaService
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[FaturaResponse])
+@router.get("/", response_model=PaginatedFaturasResponse)
 async def list_faturas(
-    associado_id: Optional[uuid.UUID] = Query(None, description="Filtrar por associado"),
-    status: Optional[StatusFatura] = Query(None, description="Filtrar por status"),
     referencia_mes: Optional[str] = Query(None, description="Filtrar por mês AAAA-MM"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(50, ge=1, le=100),
+    status: Optional[StatusFatura] = Query(None, description="Filtrar por status"),
+    q: Optional[str] = Query(None, description="Busca por nome ou CPF do associado"),
+    associado_id: Optional[uuid.UUID] = Query(None, description="Filtrar por associado"),
+    page: int = Query(1, ge=1, description="Número da página (1-based)"),
+    page_size: int = Query(20, ge=1, le=100, description="Tamanho da página"),
     db: AsyncSession = Depends(get_db)
-) -> List[FaturaResponse]:
-    """Lista faturas com filtros por associado, status e mês de referência."""
+) -> PaginatedFaturasResponse:
+    """Lista faturas com filtros por associado, status, mês e busca textual paginada."""
     service = FaturaService(db)
-    return await service.list_faturas(
-        associado_id=associado_id,
-        status_filter=status,
+    return await service.list_painel_faturas(
         referencia_mes=referencia_mes,
-        skip=skip,
-        limit=limit
+        status_filter=status,
+        q=q,
+        associado_id=associado_id,
+        page=page,
+        page_size=page_size,
     )
 
 
@@ -46,6 +60,45 @@ async def create_fatura(
     """
     service = FaturaService(db)
     return await service.create_fatura(data)
+
+
+@router.post("/gerar-mes", response_model=GeracaoFaturasResponse)
+async def gerar_faturas_mes(
+    payload: Optional[GeracaoFaturasRequest] = Body(None),
+    db: AsyncSession = Depends(get_db)
+) -> GeracaoFaturasResponse:
+    """
+    Gera faturas mensais em lote para todos os associados elegíveis do clube.
+    Mês padrão: mês corrente do clube.
+    """
+    ref_mes = payload.referencia_mes if payload else None
+    service = FaturaService(db)
+    try:
+        return await service.gerar_faturas_mes(ref_mes)
+    except ValueError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(err),
+        )
+
+
+@router.post("/marcar-atrasadas", response_model=MarcarAtrasadasResponse)
+async def marcar_faturas_atrasadas(
+    data_referencia: Optional[date] = Query(
+        None,
+        description="Data de referência para atraso (padrão: hoje do clube)"
+    ),
+    db: AsyncSession = Depends(get_db)
+) -> MarcarAtrasadasResponse:
+    """Atualiza faturas vencidas para o status ATRASADA."""
+    if data_referencia is None:
+        data_referencia = hoje_clube()
+    service = FaturaService(db)
+    atualizadas = await service.marcar_faturas_atrasadas(data_referencia)
+    return MarcarAtrasadasResponse(
+        data_referencia=data_referencia,
+        atualizadas=atualizadas,
+    )
 
 
 @router.post("/executar-regua", response_model=BillingExecutionReport)
@@ -64,6 +117,19 @@ async def executar_regua_cobranca(
     """
     engine = BillingEngineService(session=db)
     return await engine.processar_regua_diaria(data_referencia=data_referencia)
+
+
+@router.post("/{fatura_id}/baixa-manual", response_model=FaturaResponse)
+async def baixa_manual(
+    fatura_id: uuid.UUID,
+    dados: FaturaBaixaManual,
+    db: AsyncSession = Depends(get_db)
+) -> FaturaResponse:
+    """
+    Registra a baixa manual de pagamento de uma fatura PENDENTE ou ATRASADA pela administração.
+    """
+    service = FaturaService(db)
+    return await service.baixa_manual(fatura_id, dados)
 
 
 @router.get("/{fatura_id}", response_model=FaturaResponse)

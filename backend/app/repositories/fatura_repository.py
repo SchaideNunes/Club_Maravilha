@@ -24,6 +24,18 @@ class FaturaRepository:
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
 
+    async def get_by_associado_e_referencia(
+        self,
+        associado_id: uuid.UUID,
+        referencia_mes: str,
+    ) -> Optional[Fatura]:
+        query = select(Fatura).where(
+            Fatura.associado_id == associado_id,
+            Fatura.referencia_mes == referencia_mes,
+        )
+        result = await self.session.execute(query)
+        return result.scalar_one_or_none()
+
     async def list_faturas(
         self,
         associado_id: Optional[uuid.UUID] = None,

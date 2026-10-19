@@ -10,6 +10,7 @@ from apscheduler.triggers.cron import CronTrigger
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.services.billing_engine_service import BillingEngineService
+from app.services.fatura_service import FaturaService
 from app.services.whatsapp_queue_service import get_global_whatsapp_queue
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,13 @@ async def executar_rotina_diaria_cobranca() -> None:
     """Tarefa diária agendada: processa D-3, D-0, D+3 e D+7."""
     logger.info("[Scheduler] Iniciando disparo automático da régua diária de cobrança (08:00)...")
     async with AsyncSessionLocal() as session:
+        try:
+            fatura_service = FaturaService(session)
+            atualizadas = await fatura_service.marcar_faturas_atrasadas()
+            logger.info(f"[Scheduler] Marcação de faturas atrasadas concluída: {atualizadas} faturas atualizadas.")
+        except Exception as exc:
+            logger.error(f"[Scheduler] Falha na marcação de faturas atrasadas: {exc}", exc_info=True)
+
         try:
             engine = BillingEngineService(session=session)
             report = await engine.processar_regua_diaria()

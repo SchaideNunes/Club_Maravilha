@@ -53,6 +53,7 @@ async def get_current_admin(
             token,
             settings.SECRET_KEY,
             algorithms=[settings.ALGORITHM],
+            options={"require_exp": True, "require_sub": True},
         )
         sub = payload.get("sub")
         if not sub:

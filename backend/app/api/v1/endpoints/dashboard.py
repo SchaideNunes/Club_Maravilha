@@ -1,6 +1,7 @@
 """
 Endpoints do Dashboard Operacional do Painel Admin.
 """
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
@@ -101,30 +102,25 @@ async def obter_resumo(
     inicio_dia_utc = inicio_dia_local.astimezone(timezone.utc)
     fim_dia_utc = fim_dia_local.astimezone(timezone.utc)
 
-    # Consulta todos os logs e filtra no Python para garantir compatibilidade com SQLite (armazenamento UTC/offset)
-    logs_result = await db.execute(select(LogMensagem.enviado_em, LogMensagem.status))
-    logs_rows = logs_result.all()
+    # Consulta agregada via SQL delimitada pelo início e fim do dia corrente em UTC
+    query_disparos = (
+        select(
+            func.count(),
+            func.count().filter(LogMensagem.status == StatusEnvio.ERRO),
+        ).where(
+            LogMensagem.enviado_em >= inicio_dia_utc,
+            LogMensagem.enviado_em < fim_dia_utc,
+        )
+    )
+    resultado_disparos = await db.execute(query_disparos)
+    total_disparos, total_erros = resultado_disparos.one()
+    disparos_hoje = total_disparos or 0
+    disparos_erro_hoje = total_erros or 0
 
-    disparos_hoje = 0
-    disparos_erro_hoje = 0
-    for enviado_em, status_envio in logs_rows:
-        if enviado_em is None:
-            continue
-        # Converte para UTC se for naive ou aware
-        if enviado_em.tzinfo is None:
-            dt_utc = enviado_em.replace(tzinfo=timezone.utc)
-        else:
-            dt_utc = enviado_em.astimezone(timezone.utc)
-
-        if inicio_dia_utc <= dt_utc < fim_dia_utc:
-            disparos_hoje += 1
-            if status_envio == StatusEnvio.ERRO:
-                disparos_erro_hoje += 1
-
-    # 5. Status da conexão WhatsApp
+    # 5. Status da conexão WhatsApp com proteção contra travamento (timeout 3.0s)
     whatsapp_status = "DESCONECTADO"
     try:
-        status_info = await provider.get_connection_status()
+        status_info = await asyncio.wait_for(provider.get_connection_status(), timeout=3.0)
         raw_status = status_info.get("status") if isinstance(status_info, dict) else None
         if raw_status in STATUS_WHATSAPP_VALIDOS:
             whatsapp_status = raw_status

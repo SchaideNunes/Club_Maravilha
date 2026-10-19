@@ -17,7 +17,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi.routing import APIRoute
+from fastapi.routing import APIRoute, iter_route_contexts
 from httpx import AsyncClient
 from jose import jwt
 
@@ -70,6 +70,8 @@ def _depende_de(dependant, alvo) -> bool:
 
 
 def _rota_publica(path: str, methods: set) -> bool:
+    if path == "/api/v1/openapi.json":
+        return True
     if path.startswith(PREFIXOS_PUBLICOS):
         return True
     return all((m, path) in ROTAS_PUBLICAS for m in methods)
@@ -88,24 +90,23 @@ async def _token_valido(db_session) -> str:
 # ------------------------------------------------------------------------------
 def test_todas_as_rotas_nao_publicas_dependem_de_get_current_admin():
     desprotegidas = []
-    for rota in app.routes:
-        if not isinstance(rota, APIRoute) or not rota.path.startswith("/api/v1/"):
+    for rc in iter_route_contexts(app.routes):
+        if not rc.path.startswith("/api/v1/"):
             continue
-        if _rota_publica(rota.path, set(rota.methods)):
+        if _rota_publica(rc.path, set(rc.methods)):
             continue
-        if not _depende_de(rota.dependant, get_current_admin):
-            desprotegidas.append(f"{sorted(rota.methods)} {rota.path}")
+        if not hasattr(rc, "dependant") or not _depende_de(rc.dependant, get_current_admin):
+            desprotegidas.append(f"{sorted(rc.methods)} {rc.path}")
     assert desprotegidas == []
 
 
 def test_rotas_publicas_nao_dependem_de_get_current_admin():
     encontradas = set()
-    for rota in app.routes:
-        if not isinstance(rota, APIRoute):
-            continue
-        if rota.path.startswith(PREFIXOS_PUBLICOS) or any((m, rota.path) in ROTAS_PUBLICAS for m in rota.methods):
-            assert not _depende_de(rota.dependant, get_current_admin), rota.path
-            encontradas.add(rota.path)
+    for rc in iter_route_contexts(app.routes):
+        if rc.path.startswith(PREFIXOS_PUBLICOS) or any((m, rc.path) in ROTAS_PUBLICAS for m in rc.methods):
+            if hasattr(rc, "dependant") and rc.dependant:
+                assert not _depende_de(rc.dependant, get_current_admin), rc.path
+            encontradas.add(rc.path)
     assert "/api/v1/health" in encontradas
     assert "/api/v1/auth/login" in encontradas
     assert "/api/v1/webhooks/pix" in encontradas
@@ -113,7 +114,7 @@ def test_rotas_publicas_nao_dependem_de_get_current_admin():
 
 
 def test_dashboard_e_auth_estao_registrados():
-    caminhos = {rota.path for rota in app.routes if isinstance(rota, APIRoute)}
+    caminhos = {rc.path for rc in iter_route_contexts(app.routes)}
     assert {"/api/v1/auth/login", "/api/v1/auth/me", "/api/v1/dashboard/resumo", "/api/v1/dashboard/atividades"} <= caminhos
 
 
@@ -168,7 +169,14 @@ async def test_health_continua_publico(async_client_sem_auth: AsyncClient):
 
 
 async def test_catraca_whitelist_continua_publica(async_client_sem_auth: AsyncClient):
-    res = await async_client_sem_auth.get("/api/v1/catraca/whitelist")
+    """
+    O endpoint não exige token de login de usuário admin (público para a controladora),
+    mas exige o token de integridade da catraca (X-Turnstile-Token).
+    """
+    res = await async_client_sem_auth.get(
+        "/api/v1/catraca/whitelist",
+        headers={"X-Turnstile-Token": settings.TURNSTILE_API_TOKEN},
+    )
     assert res.status_code == 200
 
 

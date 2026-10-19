@@ -42,7 +42,7 @@ services:
     # Um único worker: o APScheduler (régua de cobrança) e a fila anti-ban de WhatsApp rodam
     # dentro do processo da API, e vários workers duplicariam disparos. Só aumente --workers se
     # SCHEDULER_ENABLED ficar ligado em um único processo.
-    command: sh -c "python -m scripts.migrate && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+    command: sh -c "python -m scripts.migrate && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips='*'"
     env_file:
       - .env
     environment:

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search,
@@ -11,12 +11,18 @@ import {
   CheckCircle,
 } from 'lucide-react';
 import { apiClient } from '../api/client';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import {
   formatCPF,
   formatWhatsApp,
   formatBRL,
   labelSituacao,
 } from '../utils/format';
+import { ConvidadoModal } from './associados/ConvidadoModal';
+import { NovoAssociadoModal } from './associados/NovoAssociadoModal';
+import { EditarAssociadoModal } from './associados/EditarAssociadoModal';
+import { ExcluirAssociadoModal } from './associados/ExcluirAssociadoModal';
+import { ImportarPlanilhaModal } from './associados/ImportarPlanilhaModal';
 
 export type Associado = {
   id: string;
@@ -46,36 +52,19 @@ export type RelatorioImportacao = {
   erros: Array<{ linha: number; campo?: string; motivo: string }>;
 };
 
-function dataHojeNoClube(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
-}
-
 export function AssociadosPage(): React.ReactElement {
   const queryClient = useQueryClient();
 
   // Estados de busca, filtro e paginação
   const [buscaInput, setBuscaInput] = useState('');
-  const [buscaDebounced, setBuscaDebounced] = useState('');
+  const buscaDebounced = useDebouncedValue(buscaInput, 350);
   const [situacaoFiltro, setSituacaoFiltro] = useState('');
   const [pagina, setPagina] = useState(1);
 
-  // Debounce da busca
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleBuscaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setBuscaInput(val);
+    setBuscaInput(e.target.value);
     setPagina(1);
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => {
-      setBuscaDebounced(val);
-    }, 350);
   };
-
-  useEffect(() => {
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    };
-  }, []);
 
   // Modais
   const [modalConvidadoSocio, setModalConvidadoSocio] = useState<Associado | null>(null);
@@ -105,6 +94,13 @@ export function AssociadosPage(): React.ReactElement {
 
   const totalPages = data?.total_pages || 1;
   const associados = data?.items || [];
+
+  // Clamp da página caso itens sejam excluídos e a página atual exceda o total
+  useEffect(() => {
+    if (data && data.total_pages > 0 && pagina > data.total_pages) {
+      setPagina(data.total_pages);
+    }
+  }, [data, pagina]);
 
   return (
     <div className="p-8 space-y-6">
@@ -184,7 +180,7 @@ export function AssociadosPage(): React.ReactElement {
             placeholder="Buscar por nome ou CPF..."
             value={buscaInput}
             onChange={handleBuscaChange}
-            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 transition duration-150 ease-out"
+            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 transition duration-150 ease-out"
           />
         </div>
 
@@ -203,7 +199,7 @@ export function AssociadosPage(): React.ReactElement {
               setSituacaoFiltro(e.target.value);
               setPagina(1);
             }}
-            className="w-full sm:w-40 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition duration-150 ease-out"
+            className="w-full sm:w-40 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 transition duration-150 ease-out"
           >
             <option value="">Todas</option>
             <option value="EM_DIA">Em dia</option>
@@ -344,7 +340,7 @@ export function AssociadosPage(): React.ReactElement {
 
       {/* Modal: Adicionar Convidado */}
       {modalConvidadoSocio && (
-        <ModalConvidado
+        <ConvidadoModal
           socio={modalConvidadoSocio}
           onClose={() => setModalConvidadoSocio(null)}
           onSuccess={(resposta) => {
@@ -370,7 +366,7 @@ export function AssociadosPage(): React.ReactElement {
 
       {/* Modal: Novo Associado */}
       {modalNovoAberto && (
-        <ModalNovoAssociado
+        <NovoAssociadoModal
           onClose={() => setModalNovoAberto(false)}
           onSuccess={() => {
             setModalNovoAberto(false);
@@ -381,7 +377,7 @@ export function AssociadosPage(): React.ReactElement {
 
       {/* Modal: Editar Associado */}
       {modalEditarSocio && (
-        <ModalEditarAssociado
+        <EditarAssociadoModal
           socio={modalEditarSocio}
           onClose={() => setModalEditarSocio(null)}
           onSuccess={() => {
@@ -393,7 +389,7 @@ export function AssociadosPage(): React.ReactElement {
 
       {/* Modal: Excluir Associado */}
       {modalExcluirSocio && (
-        <ModalExcluirAssociado
+        <ExcluirAssociadoModal
           socio={modalExcluirSocio}
           onClose={() => setModalExcluirSocio(null)}
           onSuccess={() => {
@@ -405,734 +401,13 @@ export function AssociadosPage(): React.ReactElement {
 
       {/* Modal: Importar Planilha */}
       {modalImportarAberto && (
-        <ModalImportarPlanilha
+        <ImportarPlanilhaModal
           onClose={() => setModalImportarAberto(false)}
           onSuccess={() => {
             queryClient.invalidateQueries({ queryKey: ['associados'] });
           }}
         />
       )}
-    </div>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Subcomponentes dos Modais
-// -----------------------------------------------------------------------------
-
-function ModalConvidado({
-  socio,
-  onClose,
-  onSuccess,
-}: {
-  socio: Associado;
-  onClose: () => void;
-  onSuccess: (resp: {
-    is_gratuito: boolean;
-    tipo: string;
-    valor_taxa_extra: string;
-    aviso: string | null;
-  }) => void;
-}) {
-  const [nome, setNome] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [dataVisita, setDataVisita] = useState(dataHojeNoClube());
-  const [erroNome, setErroNome] = useState<string | null>(null);
-  const [erroApi, setErroApi] = useState<string | null>(null);
-  const [submetendo, setSubmetendo] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErroNome(null);
-    setErroApi(null);
-
-    if (!nome.trim()) {
-      setErroNome('Informe o nome do convidado.');
-      return;
-    }
-
-    setSubmetendo(true);
-    try {
-      const payload: { nome: string; data_visita: string; cpf?: string | null } = {
-        nome: nome.trim(),
-        data_visita: dataVisita,
-        cpf: cpf.trim() ? cpf.trim() : null,
-      };
-      const res = await apiClient.post(`/associados/${socio.id}/convidados`, payload);
-      onSuccess(res.data);
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        setErroApi(detail.map((d: any) => d.msg).join(', '));
-      } else if (typeof detail === 'string') {
-        setErroApi(detail);
-      } else {
-        setErroApi('Não foi possível emitir o convite.');
-      }
-    } finally {
-      setSubmetendo(false);
-    }
-  };
-
-  return (
-    <div
-      role="dialog"
-      aria-label="Adicionar convidado"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
-    >
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Adicionar convidado
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {erroApi && (
-          <div role="alert" className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm">
-            {erroApi}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="convidado-nome" className="block text-sm font-medium text-slate-700 mb-1">
-              Nome do convidado
-            </label>
-            <input
-              id="convidado-nome"
-              type="text"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            {erroNome && <p className="mt-1 text-xs text-red-600">{erroNome}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="convidado-cpf" className="block text-sm font-medium text-slate-700 mb-1">
-              CPF (opcional)
-            </label>
-            <input
-              id="convidado-cpf"
-              type="text"
-              value={cpf}
-              onChange={(e) => setCpf(e.target.value)}
-              placeholder="000.000.000-00"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="convidado-data" className="block text-sm font-medium text-slate-700 mb-1">
-              Data da visita
-            </label>
-            <input
-              id="convidado-data"
-              type="date"
-              value={dataVisita}
-              onChange={(e) => setDataVisita(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={submetendo}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-            >
-              {submetendo ? 'Emitindo...' : 'Emitir convite'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function ModalNovoAssociado({
-  onClose,
-  onSuccess,
-}: {
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [nome, setNome] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [email, setEmail] = useState('');
-  const [diaVencimento, setDiaVencimento] = useState('10');
-  const [errosLocais, setErrosLocais] = useState<Record<string, string>>({});
-  const [erroApi, setErroApi] = useState<string | null>(null);
-  const [submetendo, setSubmetendo] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrosLocais({});
-    setErroApi(null);
-
-    const errs: Record<string, string> = {};
-    if (!nome.trim()) errs.nome = 'Nome é obrigatório.';
-    if (!cpf.trim()) errs.cpf = 'CPF é obrigatório.';
-    if (!whatsapp.trim()) errs.whatsapp = 'WhatsApp é obrigatório.';
-    if (!email.trim()) errs.email = 'E-mail é obrigatório.';
-
-    if (Object.keys(errs).length > 0) {
-      setErrosLocais(errs);
-      return;
-    }
-
-    setSubmetendo(true);
-    try {
-      await apiClient.post('/associados/', {
-        nome: nome.trim(),
-        cpf: cpf.trim(),
-        whatsapp: whatsapp.trim(),
-        email: email.trim(),
-        dia_vencimento: parseInt(diaVencimento, 10) || 10,
-      });
-      onSuccess();
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        setErroApi(detail.map((d: any) => d.msg).join(', '));
-      } else if (typeof detail === 'string') {
-        setErroApi(detail);
-      } else {
-        setErroApi('Erro ao cadastrar associado.');
-      }
-    } finally {
-      setSubmetendo(false);
-    }
-  };
-
-  return (
-    <div
-      role="dialog"
-      aria-label="Novo associado"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
-    >
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Novo associado
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {erroApi && (
-          <div role="alert" className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm">
-            {erroApi}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="novo-nome" className="block text-sm font-medium text-slate-700 mb-1">
-              Nome
-            </label>
-            <input
-              id="novo-nome"
-              type="text"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            {errosLocais.nome && <p className="mt-1 text-xs text-red-600">{errosLocais.nome}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="novo-cpf" className="block text-sm font-medium text-slate-700 mb-1">
-              CPF
-            </label>
-            <input
-              id="novo-cpf"
-              type="text"
-              value={cpf}
-              onChange={(e) => setCpf(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            {errosLocais.cpf && <p className="mt-1 text-xs text-red-600">{errosLocais.cpf}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="novo-whatsapp" className="block text-sm font-medium text-slate-700 mb-1">
-              WhatsApp
-            </label>
-            <input
-              id="novo-whatsapp"
-              type="text"
-              value={whatsapp}
-              onChange={(e) => setWhatsapp(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            {errosLocais.whatsapp && <p className="mt-1 text-xs text-red-600">{errosLocais.whatsapp}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="novo-email" className="block text-sm font-medium text-slate-700 mb-1">
-              E-mail
-            </label>
-            <input
-              id="novo-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            {errosLocais.email && <p className="mt-1 text-xs text-red-600">{errosLocais.email}</p>}
-          </div>
-
-          <div>
-            <label htmlFor="novo-vencimento" className="block text-sm font-medium text-slate-700 mb-1">
-              Dia de vencimento
-            </label>
-            <input
-              id="novo-vencimento"
-              type="number"
-              min="1"
-              max="31"
-              value={diaVencimento}
-              onChange={(e) => setDiaVencimento(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={submetendo}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-            >
-              {submetendo ? 'Salvando...' : 'Salvar'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function ModalEditarAssociado({
-  socio,
-  onClose,
-  onSuccess,
-}: {
-  socio: Associado;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [nome, setNome] = useState(socio.nome);
-  const [whatsapp, setWhatsapp] = useState(socio.whatsapp);
-  const [email, setEmail] = useState(socio.email);
-  const [diaVencimento, setDiaVencimento] = useState(String(socio.dia_vencimento));
-  const [erroApi, setErroApi] = useState<string | null>(null);
-  const [submetendo, setSubmetendo] = useState(false);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErroApi(null);
-    setSubmetendo(true);
-
-    try {
-      // PATCH sem o CPF!
-      await apiClient.patch(`/associados/${socio.id}`, {
-        nome: nome.trim(),
-        whatsapp: whatsapp.trim(),
-        email: email.trim(),
-        dia_vencimento: parseInt(diaVencimento, 10) || socio.dia_vencimento,
-      });
-      onSuccess();
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      if (Array.isArray(detail)) {
-        setErroApi(detail.map((d: any) => d.msg).join(', '));
-      } else if (typeof detail === 'string') {
-        setErroApi(detail);
-      } else {
-        setErroApi('Erro ao editar associado.');
-      }
-    } finally {
-      setSubmetendo(false);
-    }
-  };
-
-  return (
-    <div
-      role="dialog"
-      aria-label="Editar associado"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
-    >
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Editar associado
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {erroApi && (
-          <div role="alert" className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm">
-            {erroApi}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="edit-nome" className="block text-sm font-medium text-slate-700 mb-1">
-              Nome
-            </label>
-            <input
-              id="edit-nome"
-              type="text"
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="edit-cpf" className="block text-sm font-medium text-slate-500 mb-1">
-              CPF
-            </label>
-            <input
-              id="edit-cpf"
-              type="text"
-              disabled
-              value={formatCPF(socio.cpf)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm text-slate-500 bg-slate-50 cursor-not-allowed"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="edit-whatsapp" className="block text-sm font-medium text-slate-700 mb-1">
-              WhatsApp
-            </label>
-            <input
-              id="edit-whatsapp"
-              type="text"
-              value={whatsapp}
-              onChange={(e) => setWhatsapp(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="edit-email" className="block text-sm font-medium text-slate-700 mb-1">
-              E-mail
-            </label>
-            <input
-              id="edit-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="edit-vencimento" className="block text-sm font-medium text-slate-700 mb-1">
-              Dia de vencimento
-            </label>
-            <input
-              id="edit-vencimento"
-              type="number"
-              min="1"
-              max="31"
-              value={diaVencimento}
-              onChange={(e) => setDiaVencimento(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={submetendo}
-              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-            >
-              {submetendo ? 'Salvando...' : 'Salvar'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-function ModalExcluirAssociado({
-  socio,
-  onClose,
-  onSuccess,
-}: {
-  socio: Associado;
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [submetendo, setSubmetendo] = useState(false);
-
-  const handleExcluir = async () => {
-    setSubmetendo(true);
-    try {
-      await apiClient.delete(`/associados/${socio.id}`);
-      onSuccess();
-    } catch {
-      // Ignora ou trata erro
-    } finally {
-      setSubmetendo(false);
-    }
-  };
-
-  return (
-    <div
-      role="dialog"
-      aria-label="Excluir associado"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
-    >
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-slate-900">
-          Excluir associado
-        </h2>
-        <p className="text-sm text-slate-600">
-          Tem certeza de que deseja excluir o associado{' '}
-          <strong className="text-slate-900">{socio.nome}</strong>? Esta ação é irreversível.
-        </p>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            Cancelar
-          </button>
-          <button
-            type="button"
-            disabled={submetendo}
-            onClick={handleExcluir}
-            className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-          >
-            {submetendo ? 'Excluindo...' : 'Confirmar exclusão'}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ModalImportarPlanilha({
-  onClose,
-  onSuccess,
-}: {
-  onClose: () => void;
-  onSuccess: () => void;
-}) {
-  const [arquivo, setArquivo] = useState<File | null>(null);
-  const [atualizarExistentes, setAtualizarExistentes] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-  const [submetendo, setSubmetendo] = useState(false);
-  const [relatorio, setRelatorio] = useState<RelatorioImportacao | null>(null);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setErro(null);
-    const files = e.target.files;
-    if (files && files.length > 0) {
-      const f = files[0];
-      setArquivo(f);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErro(null);
-
-    if (!arquivo) return;
-
-    const nomeArquivo = arquivo.name.toLowerCase();
-    if (!nomeArquivo.endsWith('.xlsx') && !nomeArquivo.endsWith('.csv')) {
-      setErro('Formato de arquivo inválido. Selecione um arquivo .xlsx ou .csv.');
-      return;
-    }
-
-    setSubmetendo(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', arquivo);
-
-      const res = await apiClient.post<RelatorioImportacao>(
-        `/associados/importar?atualizar_existentes=${atualizarExistentes ? 'true' : 'false'}`,
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        },
-      );
-      setRelatorio(res.data);
-      onSuccess();
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      if (typeof detail === 'string') {
-        setErro(detail);
-      } else {
-        setErro('Erro ao importar planilha. Verifique o arquivo e tente novamente.');
-      }
-    } finally {
-      setSubmetendo(false);
-    }
-  };
-
-  return (
-    <div
-      role="dialog"
-      aria-label="Importar planilha"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
-    >
-      <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <h2 className="text-lg font-semibold text-slate-900">
-            Importar planilha
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {erro && (
-          <div role="alert" className="p-3 bg-red-50 text-red-700 border border-red-200 rounded-lg text-sm">
-            {erro}
-          </div>
-        )}
-
-        {!relatorio ? (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="arquivo-planilha" className="block text-sm font-medium text-slate-700 mb-1">
-                Arquivo da planilha
-              </label>
-              <input
-                id="arquivo-planilha"
-                type="file"
-                accept=".xlsx,.csv"
-                onChange={handleFileChange}
-                className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                id="atualizar-existentes"
-                type="checkbox"
-                checked={atualizarExistentes}
-                onChange={(e) => setAtualizarExistentes(e.target.checked)}
-                className="w-4 h-4 text-slate-900 border-slate-300 rounded focus:ring-primary/20"
-              />
-              <label htmlFor="atualizar-existentes" className="text-sm text-slate-700 cursor-pointer">
-                Atualizar existentes
-              </label>
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={submetendo}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium disabled:opacity-50"
-              >
-                {submetendo ? 'Enviando...' : 'Enviar planilha'}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-lg border border-slate-200 text-sm">
-              <div>
-                <span className="text-slate-500">Total lidos: </span>
-                <span data-testid="import-total-lidos" className="font-semibold text-slate-900">
-                  {relatorio.total_lidos}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500">Importados: </span>
-                <span data-testid="import-total-importados" className="font-semibold text-emerald-600">
-                  {relatorio.total_importados}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500">Atualizados: </span>
-                <span data-testid="import-total-atualizados" className="font-semibold text-blue-600">
-                  {relatorio.total_atualizados}
-                </span>
-              </div>
-              <div>
-                <span className="text-slate-500">Ignorados: </span>
-                <span data-testid="import-total-ignorados" className="font-semibold text-slate-600">
-                  {relatorio.total_ignorados_duplicados}
-                </span>
-              </div>
-            </div>
-
-            {relatorio.erros && relatorio.erros.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase text-slate-500 tracking-wider">
-                  Erros identificados:
-                </p>
-                <div className="max-h-40 overflow-y-auto space-y-1 text-xs">
-                  {relatorio.erros.map((err, i) => (
-                    <div key={i} className="p-2 bg-red-50 text-red-700 rounded border border-red-200">
-                      Linha {err.linha}: {err.campo ? `[${err.campo}] ` : ''}{err.motivo}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm font-medium"
-              >
-                Concluir
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

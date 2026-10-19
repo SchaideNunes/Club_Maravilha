@@ -73,6 +73,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await async_engine.dispose()
 
 
+is_prod = settings.ENVIRONMENT == "production"
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
@@ -81,9 +83,9 @@ app = FastAPI(
         "Módulos integrados: Associados, Mensalidades Pix, Quadras, Convidados, "
         "Catraca Facial e Automação de WhatsApp."
     ),
-    openapi_url="/api/v1/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    openapi_url=None if is_prod else "/api/v1/openapi.json",
+    docs_url=None if is_prod else "/docs",
+    redoc_url=None if is_prod else "/redoc",
     lifespan=lifespan
 )
 
@@ -99,17 +101,9 @@ app.add_middleware(
 # Registro de Rotas
 app.include_router(api_router, prefix="/api/v1")
 
-# Expõe as rotas filhas em app.routes como APIRoute para introspecção e compatibilidade estrutural
-from fastapi.routing import APIRoute, _IncludedRouter
-for route in list(app.routes):
-    if isinstance(route, _IncludedRouter):
-        for rc in route.effective_route_contexts():
-            api_r = APIRoute(path=rc.path, endpoint=rc.endpoint, methods=rc.methods)
-            api_r.dependant = rc.dependant
-            app.routes.append(api_r)
-
 
 @app.get("/", include_in_schema=False)
 async def root() -> RedirectResponse:
-    """Redireciona a raiz para a documentação interativa Swagger."""
-    return RedirectResponse(url="/docs")
+    """Redireciona a raiz para a documentação interativa Swagger ou health check em produção."""
+    destino = "/api/v1/health" if settings.ENVIRONMENT == "production" else "/docs"
+    return RedirectResponse(url=destino)

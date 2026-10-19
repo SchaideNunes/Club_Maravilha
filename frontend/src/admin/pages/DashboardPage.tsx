@@ -58,7 +58,8 @@ export function DashboardPage(): React.ReactElement {
     );
   }
 
-  if (erroResumo || erroAtividades) {
+  // Erro em tela cheia somente se a requisição inicial falhar sem nenhum dado em cache
+  if ((erroResumo && !resumo) || (erroAtividades && !atividades)) {
     return (
       <div className="p-8">
         <div
@@ -72,6 +73,7 @@ export function DashboardPage(): React.ReactElement {
   }
 
   const statusZap = labelWhatsAppStatus(resumo?.whatsapp_status || 'DESCONECTADO');
+  const pollingDesatualizado = (erroResumo && Boolean(resumo)) || (erroAtividades && Boolean(atividades));
 
   return (
     <div className="p-8 space-y-8">
@@ -83,6 +85,16 @@ export function DashboardPage(): React.ReactElement {
           Visão geral operacional e financeira do Club Maravilha
         </p>
       </div>
+
+      {/* Aviso discreto quando o polling periódico falha mas há cache preservado */}
+      {pollingDesatualizado && (
+        <div
+          role="status"
+          className="rounded-lg bg-amber-50 p-3 text-xs font-medium text-amber-800 border border-amber-200 flex items-center justify-between"
+        >
+          <span>Não foi possível atualizar os dados em tempo real. Exibindo dados desatualizados.</span>
+        </div>
+      )}
 
       {/* Grid de 5 Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">

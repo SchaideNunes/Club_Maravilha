@@ -27,6 +27,15 @@ async def seed_admin(
     if not senha or not senha.strip():
         raise ValueError("Senha não pode ser vazia.")
 
+    if len(senha.encode("utf-8")) > 72:
+        raise ValueError("Senha não pode exceder 72 bytes (limite do algoritmo bcrypt).")
+
+    if settings.ENVIRONMENT == "production":
+        if len(senha) < 12:
+            raise ValueError("Senha do administrador deve possuir no mínimo 12 caracteres em ambiente de produção.")
+        if senha == "admin_secret_password_change_in_prod":
+            raise ValueError("Senha do administrador não pode ser o valor padrão do .env.example em ambiente de produção.")
+
     email_normalizado = email.strip().lower()
     nome_limpo = nome.strip() if nome else "Administrador"
 
@@ -37,10 +46,11 @@ async def seed_admin(
     if existente is not None:
         return existente, False
 
+    senha_hash = await asyncio.to_thread(hash_senha, senha)
     novo_admin = UsuarioAdmin(
         nome=nome_limpo,
         email=email_normalizado,
-        senha_hash=hash_senha(senha),
+        senha_hash=senha_hash,
         ativo=True,
     )
     session.add(novo_admin)

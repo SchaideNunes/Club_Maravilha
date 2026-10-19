@@ -52,10 +52,16 @@ async def test_crud_associado_flow(async_client: AsyncClient):
     assert len(list_res.json()["items"]) >= 1
 
 
+from app.core.config import settings
+
+
 @pytest.mark.asyncio
 async def test_turnstile_whitelist_endpoint(async_client: AsyncClient):
-    """Testa endpoint de sincronização da lista branca para a catraca física."""
-    response = await async_client.get("/api/v1/catraca/whitelist")
+    """Testa endpoint de sincronização da lista branca para a catraca física (com X-Turnstile-Token)."""
+    response = await async_client.get(
+        "/api/v1/catraca/whitelist",
+        headers={"X-Turnstile-Token": settings.TURNSTILE_API_TOKEN},
+    )
     assert response.status_code == 200
     data = response.json()
     assert "total_authorized" in data

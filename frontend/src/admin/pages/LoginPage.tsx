@@ -107,7 +107,7 @@ export function LoginPage(): React.ReactElement {
                 autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={`w-full rounded-lg border px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 transition duration-150 ease-out ${
+                className={`w-full rounded-lg border px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 transition duration-150 ease-out ${
                   erroEmail ? 'border-red-500' : 'border-slate-300'
                 }`}
                 placeholder="seu.email@clubmaravilha.com.br"
@@ -131,7 +131,7 @@ export function LoginPage(): React.ReactElement {
                 autoComplete="current-password"
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
-                className={`w-full rounded-lg border px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/20 transition duration-150 ease-out ${
+                className={`w-full rounded-lg border px-3 py-2 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 transition duration-150 ease-out ${
                   erroSenha ? 'border-red-500' : 'border-slate-300'
                 }`}
               />

@@ -7,6 +7,7 @@ export default {
   theme: {
     extend: {
       colors: {
+        primary: '#1F3347',
         maravilha: {
           blue: '#4E7A9C',
           'blue-light': '#6899BA',

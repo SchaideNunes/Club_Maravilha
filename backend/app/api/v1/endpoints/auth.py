@@ -1,25 +1,27 @@
-"""
-Endpoints de autenticação do painel administrativo.
-"""
+import asyncio
+import secrets
 from typing import Any, Dict
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_admin
 from app.core.database import get_db
 from app.core.rate_limit import login_rate_limiter
-from app.core.security import criar_access_token, verificar_senha
+from app.core.security import criar_access_token, hash_senha, verificar_senha
 from app.models.usuario_admin import UsuarioAdmin
 
 router = APIRouter()
 
+# Hash fictício pré-computado para mitigar enumeração de contas por tempo (timing attacks)
+_DUMMY_HASH = hash_senha(secrets.token_hex(32))
+
 
 class LoginRequest(BaseModel):
-    email: str
-    senha: str
+    email: str = Field(..., max_length=254)
+    senha: str = Field(..., max_length=128)
 
 
 class UsuarioResponse(BaseModel):
@@ -60,11 +62,13 @@ async def login(
     resultado = await db.execute(query)
     usuario = resultado.scalar_one_or_none()
 
-    if (
-        usuario is None
-        or not usuario.ativo
-        or not verificar_senha(payload.senha, usuario.senha_hash)
-    ):
+    # Sempre executa a verificação criptográfica via thread pool para mitigar timing attack e não travar o loop
+    senha_hash_para_verificar = usuario.senha_hash if usuario else _DUMMY_HASH
+    senha_valida = await asyncio.to_thread(
+        verificar_senha, payload.senha, senha_hash_para_verificar
+    )
+
+    if usuario is None or not senha_valida or not usuario.ativo:
         login_rate_limiter.registrar_falha(chave_rate_limit)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

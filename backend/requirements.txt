@@ -1,5 +1,5 @@
 # FastAPI & Servidor ASGI
-fastapi>=0.110.0
+fastapi>=0.110.0,<1.0.0
 uvicorn[standard]>=0.28.0
 python-multipart>=0.0.9
 
@@ -17,7 +17,6 @@ alembic>=1.16.0
 
 # Segurança, Criptografia e JWT
 python-jose[cryptography]>=3.3.0
-passlib[bcrypt]>=1.7.4
 bcrypt>=4.1.2
 
 # Agendamento de Tarefas em Segundo Plano (Régua de Cobrança)

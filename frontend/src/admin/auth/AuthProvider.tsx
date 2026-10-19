@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   AdminUser,
   clearSession,
@@ -22,12 +23,18 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }): React.ReactElement {
   const [token, setTokenState] = useState<string | null>(() => getToken());
   const [usuario, setUsuarioState] = useState<AdminUser | null>(() => getStoredUser());
+  const queryClient = useQueryClient();
 
   const logout = React.useCallback(() => {
     clearSession();
     setTokenState(null);
     setUsuarioState(null);
-  }, []);
+    try {
+      queryClient.clear();
+    } catch {
+      // Silencia se queryClient indisponível
+    }
+  }, [queryClient]);
 
   useEffect(() => {
     const unsubscribe = onUnauthorized(() => {

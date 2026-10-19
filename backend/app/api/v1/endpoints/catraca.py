@@ -2,14 +2,30 @@
 Endpoints da API v1 para Integração com a Catraca Facial e Acesso (Rede Local).
 Fornece sincronização de Lista Branca (Offline Whitelist), trigger imediato e recepção de eventos.
 """
+import secrets
 from datetime import date
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import settings
 from app.core.database import get_db
 from app.services.catraca_service import CatracaService
 
-router = APIRouter()
+
+async def verificar_token_catraca(
+    x_turnstile_token: Optional[str] = Header(None, alias="X-Turnstile-Token")
+) -> None:
+    """Valida o token de segurança da controladora física da catraca."""
+    token_esperado = settings.TURNSTILE_API_TOKEN
+    if not x_turnstile_token or not secrets.compare_digest(x_turnstile_token, token_esperado):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token da catraca ausente ou inválido.",
+            headers={"WWW-Authenticate": "X-Turnstile-Token"},
+        )
+
+
+router = APIRouter(dependencies=[Depends(verificar_token_catraca)])
 
 
 @router.get("/whitelist", status_code=status.HTTP_200_OK)

@@ -3,7 +3,7 @@ Configurações centralizadas da aplicação utilizando Pydantic v2 Settings.
 Lê variáveis de ambiente ou arquivos .env de forma segura e tipada.
 """
 from typing import List, Optional, Union
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -92,6 +92,35 @@ class Settings(BaseSettings):
     FRANQUIA_CONVITES_MENSAL: int = 8
     VALOR_CONVITE_EXCEDENTE: float = 35.00
     LIMITE_RESERVAS_SIMULTANEAS_PADRAO: int = 2
+
+    @model_validator(mode="after")
+    def validar_segredos_producao(self) -> "Settings":
+        if self.ENVIRONMENT == "production":
+            valores_inseguros_secret = {
+                "insecure_dev_secret_key_change_in_production_12345",
+                "change_this_to_a_very_secure_random_secret_key_at_least_32_chars",
+            }
+            if (
+                not self.SECRET_KEY
+                or self.SECRET_KEY in valores_inseguros_secret
+                or len(self.SECRET_KEY) < 32
+            ):
+                raise RuntimeError(
+                    "SECRET_KEY inválida ou insegura para produção. Defina uma chave forte com pelo menos 32 caracteres diferente do padrão."
+                )
+
+            valores_inseguros_pix = {
+                "mock_webhook_secret_dev",
+                "segredo_webhook_assinatura_pix_club",
+            }
+            if (
+                not self.PIX_WEBHOOK_SECRET
+                or self.PIX_WEBHOOK_SECRET in valores_inseguros_pix
+            ):
+                raise RuntimeError(
+                    "PIX_WEBHOOK_SECRET inválido ou inseguro para produção. Defina um segredo forte diferente do padrão."
+                )
+        return self
 
     model_config = SettingsConfigDict(
         env_file=".env",

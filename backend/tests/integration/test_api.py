@@ -35,9 +35,9 @@ async def test_crud_associado_flow(async_client: AsyncClient):
     assert "id" in created_data
     associado_id = created_data["id"]
 
-    # 2. Rejeição de CPF duplicado
+    # 2. Rejeição de CPF duplicado (Feature 2: 409 Conflict)
     dup_res = await async_client.post("/api/v1/associados/", json=payload)
-    assert dup_res.status_code == 400
+    assert dup_res.status_code == 409
     assert "Já existe um associado cadastrado com o CPF" in dup_res.json()["detail"]
 
     # 3. Consulta por ID

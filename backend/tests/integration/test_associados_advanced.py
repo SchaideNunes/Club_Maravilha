@@ -137,11 +137,11 @@ async def test_update_associado_and_conflict(async_client: AsyncClient):
     assert patch_res.status_code == 200
     assert patch_res.json()["nome"] == "Sócio Atualizado"
 
-    # 2. Tenta atualizar email do sócio 1 para o email do sócio 2 (deve falhar 400)
+    # 2. Tenta atualizar email do sócio 1 para o email do sócio 2 (Feature 2: 409 Conflict)
     conflict_res = await async_client.patch(f"/api/v1/associados/{s1_id}", json={
         "email": "novo@club.com"
     })
-    assert conflict_res.status_code == 400
+    assert conflict_res.status_code == 409
     assert "já está sendo utilizado" in conflict_res.json()["detail"]
 
 

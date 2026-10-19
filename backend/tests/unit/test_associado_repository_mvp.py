@@ -51,14 +51,20 @@ async def test_get_by_id_so_carrega_convidados_quando_solicitado(db_session):
     assert com_convidados.convidados_usados_mes == 2
 
 
-async def test_list_paginated_carrega_convidados_da_pagina(db_session):
+async def test_list_paginated_conta_convidados_da_pagina_por_agregacao(db_session):
+    """
+    Feature 2: a listagem não carrega mais o histórico de convidados (selectinload);
+    o contador da página vem de uma query agregada (`contar_convidados_mes`).
+    """
     repo = AssociadoRepository(db_session)
     await _associado_com_convites_no_mes(repo, db_session)
 
     itens, total = await repo.list_paginated()
+    hoje = date.today()
+    contagens = await repo.contar_convidados_mes([i.id for i in itens], ano=hoje.year, mes=hoje.month)
 
     assert total == 1
-    assert itens[0].convidados_usados_mes == 2
+    assert contagens[itens[0].id] == 2
 
 
 async def test_update_mantem_contador_correto_mesmo_sem_carga_previa_dos_convidados(db_session):

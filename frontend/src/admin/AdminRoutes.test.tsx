@@ -6,8 +6,8 @@
  *     /admin/login          -> LoginPage (pública)
  *     /admin                -> ProtectedRoute + AdminLayout (com <Outlet/>), índice = DashboardPage
  *     /admin/associados     -> AssociadosPage
- *     /admin/mensalidades   -> placeholder com <h1>"Mensalidades"</h1> (Feature 6)
- *     /admin/whatsapp       -> placeholder com <h1>"WhatsApp & Configurações"</h1> (Feature 6)
+ *     /admin/mensalidades   -> MensalidadesPage com <h1>"Mensalidades"</h1> (Feature 6; substituiu o placeholder)
+ *     /admin/whatsapp       -> WhatsAppConfigPage com <h1>"WhatsApp & Configurações"</h1> (Feature 6; idem)
  *     /admin/<desconhecida> -> redireciona para /admin
  * - `src/admin/AdminApp.tsx` exporta `AdminApp`: QueryClientProvider + BrowserRouter + AuthProvider + AdminRoutes.
  * - `src/admin/layout/AdminLayout.tsx` exporta `AdminLayout` (sidebar desktop-first):
@@ -32,17 +32,22 @@ const LINKS = [
 ] as const;
 
 describe('rotas do admin', () => {
-  it('/admin/mensalidades renderiza o placeholder dentro do layout', async () => {
+  // Feature 6: os placeholders deram lugar às páginas reais (MensalidadesPage e WhatsAppConfigPage).
+  it('/admin/mensalidades renderiza a MensalidadesPage dentro do layout', async () => {
     renderAdmin({ route: '/admin/mensalidades' });
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Mensalidades' })).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Menu principal' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Gerar faturas do mês' })).toBeInTheDocument();
+    expect(screen.queryByText(/em desenvolvimento/i)).not.toBeInTheDocument();
   });
 
-  it('/admin/whatsapp renderiza o placeholder dentro do layout', async () => {
+  it('/admin/whatsapp renderiza a WhatsAppConfigPage dentro do layout', async () => {
     renderAdmin({ route: '/admin/whatsapp' });
 
     expect(await screen.findByRole('heading', { level: 1, name: 'WhatsApp & Configurações' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Conexão' })).toBeInTheDocument();
+    expect(screen.queryByText(/em desenvolvimento/i)).not.toBeInTheDocument();
   });
 
   it('rota desconhecida do admin volta para /admin', async () => {

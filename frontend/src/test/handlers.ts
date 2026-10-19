@@ -77,8 +77,113 @@ export const RESUMO_PADRAO = {
   whatsapp_status: 'CONECTADO',
 };
 
+// ------------------------------------------------------------------------------
+// Feature 6 - Mensalidades (GET /faturas/ com `resumo`) e Central de Configurações
+// ------------------------------------------------------------------------------
+
+export type StatusFaturaFixture = 'PENDENTE' | 'ATRASADA' | 'PAGO' | 'CANCELADO';
+
+/** Item de GET /faturas/ (FaturaPainelItemResponse + associado_cpf da Feature 6). */
+export type FaturaFixture = {
+  id: string;
+  associado_id: string;
+  associado_nome: string;
+  associado_cpf: string;
+  referencia_mes: string;
+  data_vencimento: string;
+  valor_base: string;
+  valor_convidados_excedentes: string;
+  valor_desconto: string;
+  valor_total: string;
+  convites_usados: number;
+  convites_extras: number;
+  status: StatusFaturaFixture;
+  forma_pagamento: 'PIX' | 'CARTAO' | 'DINHEIRO' | null;
+  data_pagamento: string | null;
+  lembretes_ativos: boolean;
+};
+
+export function criarFatura(overrides: Partial<FaturaFixture> = {}): FaturaFixture {
+  return {
+    id: 'f0000000-0000-4000-8000-000000000001',
+    associado_id: '22222222-2222-4222-8222-222222222222',
+    associado_nome: 'Maria Souza',
+    associado_cpf: '529.982.247-25',
+    referencia_mes: '2026-11',
+    data_vencimento: '2026-11-10',
+    valor_base: '150.00',
+    valor_convidados_excedentes: '0.00',
+    valor_desconto: '0.00',
+    valor_total: '150.00',
+    convites_usados: 3,
+    convites_extras: 0,
+    status: 'PENDENTE',
+    forma_pagamento: null,
+    data_pagamento: null,
+    lembretes_ativos: true,
+    ...overrides,
+  };
+}
+
+/** `resumo` de GET /faturas/ (escopo: referencia_mes/associado_id; ignora status, q e paginação). */
+export type ResumoFaturasFixture = {
+  total: number;
+  pagas: number;
+  pendentes: number;
+  atrasadas: number;
+  valor_total: string;
+  valor_recebido: string;
+};
+
+export const RESUMO_FATURAS_VAZIO: ResumoFaturasFixture = {
+  total: 0,
+  pagas: 0,
+  pendentes: 0,
+  atrasadas: 0,
+  valor_total: '0.00',
+  valor_recebido: '0.00',
+};
+
+/** Resposta de GET /api/v1/configuracao (ConfiguracaoResponse). */
+export type ConfiguracaoFixture = {
+  id: number;
+  valor_mensalidade: string;
+  franquia_convidados: number;
+  valor_convidado_extra: string;
+  chave_pix: string | null;
+  horario_disparo: string;
+  automacao_ativa: boolean;
+  template_d_menos_3: string;
+  template_d0: string;
+  template_recibo: string;
+  template_d_mais_3: string;
+  template_d_mais_7: string;
+  updated_at: string;
+};
+
+export const CONFIGURACAO_PADRAO: ConfiguracaoFixture = {
+  id: 1,
+  valor_mensalidade: '150.00',
+  franquia_convidados: 8,
+  valor_convidado_extra: '35.00',
+  chave_pix: 'financeiro@clubmaravilha.com.br',
+  horario_disparo: '08:00',
+  automacao_ativa: true,
+  template_d_menos_3: 'Olá, {nome}! Sua mensalidade vence em {vencimento}.',
+  template_d0: 'Bom dia, {nome}! Vence hoje: {valor_total}. Pix: {chave_pix}',
+  template_recibo: 'Recebemos {valor_total}, {nome}. Obrigado!',
+  template_d_mais_3: '{nome}, sua mensalidade de {vencimento} está em aberto.',
+  template_d_mais_7: 'Atenção, {nome}! Acesso bloqueado até a regularização.',
+  updated_at: '2026-10-01T12:00:00Z',
+};
+
 /** Handlers mínimos para a casca autenticada (validação opcional de sessão e indicador do WhatsApp). */
 export const defaultHandlers = [
   http.get(`${API}/auth/me`, () => HttpResponse.json(ADMIN_TESTE)),
   http.get(`${API}/whatsapp/status`, () => HttpResponse.json({ status: 'CONECTADO' })),
+  // Feature 6: páginas /admin/mensalidades e /admin/whatsapp montadas pelos testes de layout/rotas
+  http.get(`${API}/faturas/`, () => HttpResponse.json({ ...paginado([]), resumo: RESUMO_FATURAS_VAZIO })),
+  http.get(`${API}/configuracao`, () => HttpResponse.json(CONFIGURACAO_PADRAO)),
+  http.get(`${API}/whatsapp/qrcode`, () => HttpResponse.json({ status: 'CONECTADO', qrcode: null })),
+  http.get(`${API}/whatsapp/logs`, () => HttpResponse.json([])),
 ];

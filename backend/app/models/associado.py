@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, List, Optional
 from sqlalchemy import CheckConstraint, Date, Enum, Integer, String, Text, func
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.core.clock import hoje_clube
 from app.core.config import settings
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.models.convidado import StatusConvidado
@@ -117,7 +118,7 @@ class Associado(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         """
         if "convidados" in sa_inspect(self).unloaded:
             return 0
-        hoje = date.today()
+        hoje = hoje_clube()
         return self.contar_convidados_no_mes(hoje.year, hoje.month)
 
     def __repr__(self) -> str:

@@ -5,6 +5,7 @@ import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.associado import StatusAssociado
 from app.schemas.associado import (
@@ -68,7 +69,13 @@ async def importar_planilha_associados(
             detail="Arquivo inválido: nome do arquivo ausente."
         )
 
-    content = await file.read()
+    max_bytes = settings.IMPORT_MAX_BYTES
+    content = await file.read(max_bytes + 1)
+    if len(content) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"Arquivo excede o limite máximo permitido de {max_bytes // (1024 * 1024)} MB."
+        )
     if not content:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

@@ -4,6 +4,7 @@ Validação matemática estrita de CPF, higienização do WhatsApp (padrão Bail
 """
 import csv
 import io
+import logging
 import re
 import unicodedata
 from typing import Any, List, Optional, Set, Tuple
@@ -13,6 +14,8 @@ from app.core.config import settings
 from app.core.cpf import validate_and_format_cpf
 from app.core.phone import sanitize_whatsapp_number
 from app.schemas.associado import AssociadoCreate, ImportErrorDetail
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_header(header: str) -> str:
@@ -47,12 +50,19 @@ def parse_excel_or_csv_bytes(
 
     if lower_filename.endswith(".xlsx") or lower_filename.endswith(".xlsm"):
         try:
-            wb = openpyxl.load_workbook(io.BytesIO(file_bytes), data_only=True)
+            wb = openpyxl.load_workbook(io.BytesIO(file_bytes), read_only=True, data_only=True)
         except Exception as exc:
-            raise ValueError(f"Arquivo Excel corrompido ou inválido: {exc}") from exc
-        sheet = wb.active
-        for row_idx, row in enumerate(sheet.iter_rows(values_only=True), start=1):
-            raw_rows.append((row_idx, [_cell_to_str(c) for c in row]))
+            logger.error("Erro ao carregar arquivo Excel: %s", exc, exc_info=True)
+            raise ValueError("Arquivo Excel corrompido ou inválido.") from exc
+
+        try:
+            sheet = wb.active
+            for row_idx, row in enumerate(sheet.iter_rows(values_only=True), start=1):
+                if row_idx > settings.IMPORT_MAX_LINHAS + 1:
+                    raise ValueError(f"Planilha excede o limite máximo permitido de {settings.IMPORT_MAX_LINHAS} linhas.")
+                raw_rows.append((row_idx, [_cell_to_str(c) for c in row]))
+        finally:
+            wb.close()
     elif lower_filename.endswith(".csv"):
         # Tenta decodificar como UTF-8 com BOM, fallback para Latin-1
         try:
@@ -65,9 +75,15 @@ def parse_excel_or_csv_bytes(
 
         sample = text[:2048]
         delimiter = ";" if sample.count(";") >= sample.count(",") else ","
-        reader = csv.reader(io.StringIO(text), delimiter=delimiter)
-        for row_idx, row in enumerate(reader, start=1):
-            raw_rows.append((row_idx, [str(c).strip() for c in row]))
+        try:
+            reader = csv.reader(io.StringIO(text), delimiter=delimiter)
+            for row_idx, row in enumerate(reader, start=1):
+                if row_idx > settings.IMPORT_MAX_LINHAS + 1:
+                    raise ValueError(f"Arquivo CSV excede o limite máximo permitido de {settings.IMPORT_MAX_LINHAS} linhas.")
+                raw_rows.append((row_idx, [str(c).strip() for c in row]))
+        except csv.Error as exc:
+            logger.error("Erro ao ler arquivo CSV: %s", exc, exc_info=True)
+            raise ValueError("Arquivo CSV malformado ou inválido.") from exc
     else:
         raise ValueError("Formato de arquivo não suportado. Envie um arquivo .xlsx ou .csv.")
 
@@ -183,8 +199,8 @@ def parse_excel_or_csv_bytes(
             continue
         seen_emails_in_file.add(clean_email)
 
-        # 5. Validação de dia_vencimento (opcional: padrão settings.DIA_VENCIMENTO_PADRAO)
-        dia_vencimento = settings.DIA_VENCIMENTO_PADRAO
+        # 5. Validação de dia_vencimento (opcional: padrão settings.DIA_VENCIMENTO_PADRAO se omitido)
+        dia_vencimento = None
         if "dia_vencimento" in col_map and col_map["dia_vencimento"] < len(row):
             raw_dia = str(row[col_map["dia_vencimento"]]).strip()
             if raw_dia != "" and raw_dia.lower() != "none":
@@ -206,15 +222,17 @@ def parse_excel_or_csv_bytes(
 
         # 6. Criação do schema AssociadoCreate
         try:
-            member = AssociadoCreate(
-                nome=nome,
-                cpf=formatted_cpf,
-                whatsapp=norm_phone,
-                email=clean_email,
-                dia_vencimento=dia_vencimento,
-                foto_url=foto,
-                observacoes=obs,
-            )
+            payload = {
+                "nome": nome,
+                "cpf": formatted_cpf,
+                "whatsapp": norm_phone,
+                "email": clean_email,
+                "foto_url": foto,
+                "observacoes": obs,
+            }
+            if dia_vencimento is not None:
+                payload["dia_vencimento"] = dia_vencimento
+            member = AssociadoCreate(**payload)
             member._line_num = physical_line_num
             parsed_members.append(member)
         except ValidationError as exc:

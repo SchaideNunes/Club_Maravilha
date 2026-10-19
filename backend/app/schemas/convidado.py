@@ -4,9 +4,18 @@ Schemas Pydantic v2 para validação e serialização de Convidados.
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Any, Literal, Optional
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from app.core.cpf import validate_and_format_cpf
 from app.models.convidado import StatusConvidado
+
+
+def _validar_cpf_opcional(valor: Any) -> Optional[str]:
+    if valor is None:
+        return None
+    if isinstance(valor, str) and not valor.strip():
+        return None
+    return validate_and_format_cpf(str(valor))
 
 
 class ConvidadoBase(BaseModel):
@@ -14,15 +23,30 @@ class ConvidadoBase(BaseModel):
     cpf: Optional[str] = Field(None, min_length=11, max_length=14, example="987.654.321-99")
     data_visita: date = Field(..., example="2026-09-15")
 
+    @field_validator("cpf", mode="before")
+    @classmethod
+    def validar_cpf(cls, valor: Any) -> Optional[str]:
+        return _validar_cpf_opcional(valor)
+
 
 class ConvidadoCreate(ConvidadoBase):
     associado_titular_id: uuid.UUID
+
+    @field_validator("cpf", mode="before")
+    @classmethod
+    def validar_cpf_create(cls, valor: Any) -> Optional[str]:
+        return _validar_cpf_opcional(valor)
 
 
 class ConvidadoAssociadoCreate(BaseModel):
     nome: str = Field(..., min_length=3, max_length=150)
     cpf: Optional[str] = None
     data_visita: Optional[date] = None
+
+    @field_validator("cpf", mode="before")
+    @classmethod
+    def validar_cpf_associado(cls, valor: Any) -> Optional[str]:
+        return _validar_cpf_opcional(valor)
 
 
 class ConvidadoResponse(ConvidadoBase):

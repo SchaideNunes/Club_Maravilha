@@ -4,10 +4,11 @@ Centraliza validações, regras de domínio e chamadas de repositório.
 """
 from datetime import date
 import math
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Sequence
 import uuid
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.clock import hoje_clube
 from app.models.associado import Associado, StatusAssociado
 from app.models.fatura import StatusFatura
 from app.repositories.associado_repository import AssociadoRepository
@@ -44,6 +45,32 @@ class AssociadoService:
         self.repository = AssociadoRepository(session)
         self.configuracao_repo = ConfiguracaoRepository(session)
 
+    async def _enriquecer_associados(self, associados: Sequence[Associado]) -> List[AssociadoResponse]:
+        """
+        Enriquece associados com franquia configurada, convidados do mês corrente
+        e situação financeira em queries agregadas batch, eliminando duplicações.
+        """
+        if not associados:
+            return []
+
+        cfg = await self.configuracao_repo.get_or_create()
+        franquia = cfg.franquia_convidados
+        hoje = hoje_clube()
+        ref_mes = f"{hoje.year:04d}-{hoje.month:02d}"
+
+        item_ids = [item.id for item in associados]
+        convidados_map = await self.repository.contar_convidados_mes(item_ids, ano=hoje.year, mes=hoje.month)
+        situacoes_map = await self.repository.situacoes_financeiras(item_ids, referencia_mes=ref_mes)
+
+        resp_items: List[AssociadoResponse] = []
+        for item in associados:
+            data = AssociadoResponse.model_validate(item).model_dump()
+            data["franquia_convidados"] = franquia
+            data["convidados_usados_mes"] = convidados_map.get(item.id, 0)
+            data["situacao_financeira"] = situacoes_map.get(item.id, SituacaoFinanceira.EM_DIA)
+            resp_items.append(AssociadoResponse.model_validate(data))
+        return resp_items
+
     async def list_paginated(
         self,
         page: int = 1,
@@ -58,7 +85,7 @@ class AssociadoService:
         if page_size < 1 or page_size > 100:
             page_size = 20
 
-        hoje = date.today()
+        hoje = hoje_clube()
         ref_mes = f"{hoje.year:04d}-{hoje.month:02d}"
         skip = (page - 1) * page_size
 
@@ -71,21 +98,7 @@ class AssociadoService:
             referencia_mes=ref_mes,
         )
 
-        cfg = await self.configuracao_repo.get_or_create()
-        franquia = cfg.franquia_convidados
-
-        item_ids = [item.id for item in items]
-        convidados_map = await self.repository.contar_convidados_mes(item_ids, ano=hoje.year, mes=hoje.month)
-        situacoes_map = await self.repository.situacoes_financeiras(item_ids, referencia_mes=ref_mes)
-
-        resp_items: List[AssociadoResponse] = []
-        for item in items:
-            data = AssociadoResponse.model_validate(item).model_dump()
-            data["franquia_convidados"] = franquia
-            data["convidados_usados_mes"] = convidados_map.get(item.id, 0)
-            data["situacao_financeira"] = situacoes_map.get(item.id, SituacaoFinanceira.EM_DIA)
-            resp_items.append(AssociadoResponse.model_validate(data))
-
+        resp_items = await self._enriquecer_associados(items)
         total_pages = math.ceil(total / page_size) if total > 0 else 1
 
         return PaginatedAssociadosResponse(
@@ -115,18 +128,8 @@ class AssociadoService:
                 detail="Associado não encontrado."
             )
 
-        cfg = await self.configuracao_repo.get_or_create()
-        hoje = date.today()
-        ref_mes = f"{hoje.year:04d}-{hoje.month:02d}"
-
-        convidados_map = await self.repository.contar_convidados_mes([associado.id], ano=hoje.year, mes=hoje.month)
-        situacoes_map = await self.repository.situacoes_financeiras([associado.id], referencia_mes=ref_mes)
-
-        data = AssociadoResponse.model_validate(associado).model_dump()
-        data["franquia_convidados"] = cfg.franquia_convidados
-        data["convidados_usados_mes"] = convidados_map.get(associado.id, 0)
-        data["situacao_financeira"] = situacoes_map.get(associado.id, SituacaoFinanceira.EM_DIA)
-        return AssociadoResponse.model_validate(data)
+        enriquecidos = await self._enriquecer_associados([associado])
+        return enriquecidos[0]
 
     async def create_associado(self, data: AssociadoCreate) -> AssociadoResponse:
         # Validação de unicidade de CPF (409 Conflict)
@@ -174,18 +177,8 @@ class AssociadoService:
         updated = await self.repository.update(associado, data)
         await self.session.commit()
 
-        cfg = await self.configuracao_repo.get_or_create()
-        hoje = date.today()
-        ref_mes = f"{hoje.year:04d}-{hoje.month:02d}"
-
-        convidados_map = await self.repository.contar_convidados_mes([updated.id], ano=hoje.year, mes=hoje.month)
-        situacoes_map = await self.repository.situacoes_financeiras([updated.id], referencia_mes=ref_mes)
-
-        resp_data = AssociadoResponse.model_validate(updated).model_dump()
-        resp_data["franquia_convidados"] = cfg.franquia_convidados
-        resp_data["convidados_usados_mes"] = convidados_map.get(updated.id, 0)
-        resp_data["situacao_financeira"] = situacoes_map.get(updated.id, SituacaoFinanceira.EM_DIA)
-        return AssociadoResponse.model_validate(resp_data)
+        enriquecidos = await self._enriquecer_associados([updated])
+        return enriquecidos[0]
 
     async def delete_associado(self, associado_id: uuid.UUID) -> None:
         """Remove o associado do clube."""

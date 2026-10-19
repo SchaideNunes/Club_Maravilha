@@ -33,7 +33,7 @@ async def test_convidados_crud_and_quota_api(async_client: AsyncClient, db_sessi
     payload = {
         "associado_titular_id": str(socio.id),
         "nome": "Convidado Especial 1",
-        "cpf": "123.456.789-00",
+        "cpf": "123.456.789-09",
         "data_visita": hoje.isoformat()
     }
     res_post = await async_client.post("/api/v1/convidados/", json=payload)

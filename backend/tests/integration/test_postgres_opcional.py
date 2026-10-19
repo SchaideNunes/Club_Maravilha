@@ -118,3 +118,83 @@ async def test_get_or_create_concorrente_cria_um_unico_registro(schema_temporari
         assert total == 1
     finally:
         await engine.dispose()
+
+
+async def test_emissao_concorrente_com_uma_vaga_restante_gera_exatamente_um_gratuito(schema_temporario):
+    """
+    Testa concorrência real no PostgreSQL:
+    Quando resta exatamente 1 vaga na franquia de convidados, duas requisições simultâneas
+    (via asyncio.gather) de emissão de convite para o mesmo titular devem ser serializadas
+    pela trava pessimista (SELECT ... FOR UPDATE). Exatamente 1 deve ser GRATUITO e a outra EXCEDENTE.
+    """
+    from datetime import date
+    from decimal import Decimal
+    from app.models.base import Base
+    from app.models.associado import Associado, StatusAssociado
+    from app.models.convidado import Convidado, StatusConvidado
+    from app.schemas.convidado import ConvidadoAssociadoCreate
+    from app.services.convidado_service import ConvidadoService
+
+    engine = create_async_engine(
+        _url("asyncpg"),
+        connect_args={"server_settings": {"search_path": schema_temporario}},
+    )
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        sessao_factory = async_sessionmaker(engine, expire_on_commit=False)
+        socio_id = uuid.uuid4()
+        hoje = date(2026, 10, 15)
+
+        async with sessao_factory() as sessao:
+            cfg = await ConfiguracaoRepository(sessao).get_or_create()
+            cfg.franquia_convidados = 2
+            cfg.valor_convidado_extra = Decimal("35.00")
+
+            socio = Associado(
+                id=socio_id,
+                nome="Sócio Concorrência Postgres",
+                cpf="529.982.247-25",
+                whatsapp="5575999990000",
+                email="concorrencia@clube.com",
+                status=StatusAssociado.ATIVO,
+                dia_vencimento=10,
+            )
+            sessao.add(socio)
+            # 1 convite já utilizado => resta apenas 1 vaga na franquia (total 2)
+            conv_existente = Convidado(
+                associado_titular_id=socio_id,
+                nome="Primeiro Visitante",
+                data_visita=hoje,
+                status=StatusConvidado.EMITIDO,
+                is_gratuito=True,
+                valor_cobrado=Decimal("0.00"),
+            )
+            sessao.add(conv_existente)
+            await sessao.commit()
+
+        async def emitir(nome: str):
+            async with sessao_factory() as s:
+                service = ConvidadoService(s)
+                return await service.adicionar_convidado_associado(
+                    socio_id,
+                    ConvidadoAssociadoCreate(nome=nome, data_visita=hoje)
+                )
+
+        resp1, resp2 = await asyncio.gather(
+            emitir("Visitante Concorrente A"),
+            emitir("Visitante Concorrente B")
+        )
+
+        respostas = [resp1, resp2]
+        gratuitos = [r for r in respostas if r.is_gratuito]
+        excedentes = [r for r in respostas if not r.is_gratuito]
+
+        assert len(gratuitos) == 1, f"Esperado exatamente 1 gratuito sob concorrência, obtido: {len(gratuitos)}"
+        assert len(excedentes) == 1, f"Esperado exatamente 1 excedente sob concorrência, obtido: {len(excedentes)}"
+        assert excedentes[0].tipo == "EXCEDENTE"
+        assert excedentes[0].valor_taxa_extra == Decimal("35.00")
+    finally:
+        await engine.dispose()
+

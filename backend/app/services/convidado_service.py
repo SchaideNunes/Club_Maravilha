@@ -3,10 +3,11 @@ Serviço de Negócio para Gestão de Convidados, Cota Mensal e Validação de QR
 """
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import uuid
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.clock import hoje_clube
 from app.models.associado import StatusAssociado
 from app.models.convidado import Convidado, StatusConvidado
 from app.models.fatura import StatusFatura
@@ -57,18 +58,17 @@ class ConvidadoService:
             limit=limit
         )
 
-    async def emitir_convite(self, data: ConvidadoCreate) -> Convidado:
+    async def _validar_elegibilidade(self, associado: Associado) -> None:
         """
-        Emite um convite para visitante com QR Code temporário e controle da cota mensal
-        lida dinamicamente da Configuracao do clube:
-        - Até a franquia no mês: GRATUITO (R$ 0,00).
-        - Acima da franquia: EXCEDENTE (valor_convidado_extra).
+        Valida se o associado titular tem permissão para emitir convites para visitantes:
+        - BLOQUEADO => 403 Forbidden com 'bloqueado' no detail
+        - Qualquer status não-ATIVO (ex: INADIMPLENTE) => 403 Forbidden
+        - Mensalidades com faturas ATRASADA => 403 Forbidden
         """
-        associado = await self.associado_repo.get_by_id(data.associado_titular_id)
-        if not associado:
+        if associado.status == StatusAssociado.BLOQUEADO:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Associado titular não encontrado."
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Associado bloqueado não pode emitir convites."
             )
         if associado.status != StatusAssociado.ATIVO:
             raise HTTPException(
@@ -77,7 +77,7 @@ class ConvidadoService:
             )
 
         faturas_vencidas = await self.fatura_repo.list_faturas(
-            associado_id=data.associado_titular_id,
+            associado_id=associado.id,
             status=StatusFatura.ATRASADA
         )
         if faturas_vencidas:
@@ -86,10 +86,19 @@ class ConvidadoService:
                 detail="Emissão bloqueada: associado possui mensalidade vencida em aberto."
             )
 
-        ano = data.data_visita.year
-        mes = data.data_visita.month
+    async def _calcular_cobranca(
+        self,
+        associado_id: uuid.UUID,
+        data_visita: date
+    ) -> Tuple[bool, str, Decimal, int, int, int, Decimal, Optional[str]]:
+        """
+        Calcula regras de franquia e cobrança mensal compartilhadas por todos os fluxos de emissão.
+        Retorna (is_gratuito, tipo, valor_cobrado, emitidos_no_mes, usados, franquia, valor_extra, aviso).
+        """
+        ano = data_visita.year
+        mes = data_visita.month
         emitidos_no_mes = await self.convidado_repo.contar_convites_no_mes(
-            associado_id=data.associado_titular_id,
+            associado_id=associado_id,
             ano=ano,
             mes=mes
         )
@@ -98,12 +107,47 @@ class ConvidadoService:
         franquia = cfg.franquia_convidados
         valor_extra = cfg.valor_convidado_extra
 
-        if emitidos_no_mes < franquia:
-            is_gratuito = True
-            valor_cobrado = Decimal("0.00")
+        is_gratuito = emitidos_no_mes < franquia
+        tipo = "GRATUITO" if is_gratuito else "EXCEDENTE"
+        valor_cobrado = Decimal("0.00") if is_gratuito else valor_extra
+
+        usados = emitidos_no_mes + 1
+
+        if is_gratuito:
+            aviso = None
         else:
-            is_gratuito = False
-            valor_cobrado = valor_extra
+            valor_fmt = f"R$ {valor_extra:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            aviso = f"Franquia mensal de convidados ({franquia}) atingida. Este convite excedente terá cobrança de {valor_fmt}."
+
+        return is_gratuito, tipo, valor_cobrado, emitidos_no_mes, usados, franquia, valor_extra, aviso
+
+    async def emitir_convite(self, data: ConvidadoCreate) -> Convidado:
+        """
+        Emite um convite para visitante com QR Code temporário e controle da cota mensal
+        lida dinamicamente da Configuracao do clube:
+        - Até a franquia no mês: GRATUITO (R$ 0,00).
+        - Acima da franquia: EXCEDENTE (valor_convidado_extra).
+        Trava pessimista no associado titular garante consistência concorrente na cota.
+        """
+        associado = await self.associado_repo.get_by_id(data.associado_titular_id, for_update=True)
+        if not associado:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Associado titular não encontrado."
+            )
+
+        await self._validar_elegibilidade(associado)
+
+        (
+            is_gratuito,
+            _,
+            valor_cobrado,
+            _,
+            _,
+            _,
+            _,
+            _
+        ) = await self._calcular_cobranca(data.associado_titular_id, data.data_visita)
 
         convidado = Convidado(
             associado_titular_id=data.associado_titular_id,
@@ -127,46 +171,31 @@ class ConvidadoService:
     ) -> AdicionarConvidadoResponse:
         """
         Emissão rápida de convite pelo ID do associado titular:
-        - data_visita omitida => date.today()
+        - data_visita omitida => hoje_clube()
         - Respeita franquia_convidados e valor_convidado_extra da Configuracao
-        - Associado inexistente => 404, BLOQUEADO => 403
+        - Trava pessimista no associado titular garante consistência concorrente na cota
         """
-        associado = await self.associado_repo.get_by_id(associado_id)
+        associado = await self.associado_repo.get_by_id(associado_id, for_update=True)
         if not associado:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Associado não encontrado."
             )
 
-        if associado.status == StatusAssociado.BLOQUEADO:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Associado bloqueado não pode emitir convites."
-            )
+        await self._validar_elegibilidade(associado)
 
-        data_visita = data.data_visita or date.today()
-        ano = data_visita.year
-        mes = data_visita.month
+        data_visita = data.data_visita or hoje_clube()
 
-        emitidos_no_mes = await self.convidado_repo.contar_convites_no_mes(
-            associado_id=associado_id,
-            ano=ano,
-            mes=mes
-        )
-
-        cfg = await self.configuracao_repo.get_or_create()
-        franquia = cfg.franquia_convidados
-        valor_extra = cfg.valor_convidado_extra
-
-        is_gratuito = emitidos_no_mes < franquia
-        tipo = "GRATUITO" if is_gratuito else "EXCEDENTE"
-        valor_cobrado = Decimal("0.00") if is_gratuito else valor_extra
-
-        if is_gratuito:
-            aviso = None
-        else:
-            valor_fmt = f"R$ {valor_extra:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-            aviso = f"Franquia mensal de convidados ({franquia}) atingida. Este convite excedente terá cobrança de {valor_fmt}."
+        (
+            is_gratuito,
+            tipo,
+            valor_cobrado,
+            _,
+            usados,
+            franquia,
+            valor_extra,
+            aviso
+        ) = await self._calcular_cobranca(associado_id, data_visita)
 
         convidado = Convidado(
             associado_titular_id=associado_id,
@@ -182,7 +211,6 @@ class ConvidadoService:
         await self.session.commit()
         await self.session.refresh(created)
 
-        usados = emitidos_no_mes + 1
         excedentes = max(0, usados - franquia)
 
         return AdicionarConvidadoResponse(
@@ -255,7 +283,7 @@ class ConvidadoService:
                 mensagem="Este convite foi cancelado pelo sócio titular."
             )
 
-        hoje = data_leitura or date.today()
+        hoje = data_leitura or hoje_clube()
         if convidado.data_visita != hoje:
             data_str = convidado.data_visita.strftime("%d/%m/%Y")
             return ConvidadoValidateQRResponse(

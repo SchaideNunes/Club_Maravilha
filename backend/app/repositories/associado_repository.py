@@ -11,6 +11,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from app.core.clock import hoje_clube
 from app.models.associado import Associado, StatusAssociado
 from app.models.convidado import Convidado, StatusConvidado
 from app.models.fatura import Fatura, StatusFatura
@@ -29,13 +30,16 @@ class AssociadoRepository:
     async def get_by_id(
         self,
         associado_id: uuid.UUID,
-        com_convidados: bool = False
+        com_convidados: bool = False,
+        for_update: bool = False,
     ) -> Optional[Associado]:
         """
-        Busca o associado pelo ID. Com `com_convidados=True` carrega a relação de convidados
-        (necessária para `Associado.convidados_usados_mes` refletir o mês corrente na API).
+        Busca o associado pelo ID. Com `com_convidados=True` carrega a relação de convidados.
+        Com `for_update=True` aplica trava pessimista (SELECT ... FOR UPDATE) na linha do associado.
         """
         query = select(Associado).where(Associado.id == associado_id)
+        if for_update:
+            query = query.with_for_update()
         if com_convidados:
             query = query.options(selectinload(Associado.convidados))
         result = await self.session.execute(query)
@@ -144,21 +148,25 @@ class AssociadoRepository:
             filters.append(Associado.status == status)
 
         if q:
-            term = f"%{q.strip()}%"
-            q_digits = re.sub(r"\D", "", q.strip())
+            term_raw = q.strip()
+            escaped_q = term_raw.replace("/", "//").replace("%", "/%").replace("_", "/_")
+            term = f"%{escaped_q}%"
+            has_letters = bool(re.search(r"[a-zA-Z]", term_raw))
+            q_digits = re.sub(r"\D", "", term_raw)
             q_conditions = [
-                Associado.nome.ilike(term),
-                Associado.cpf.like(term),
-                Associado.email.ilike(term),
+                Associado.nome.ilike(term, escape="/"),
+                Associado.cpf.like(term, escape="/"),
+                Associado.email.ilike(term, escape="/"),
             ]
-            if len(q_digits) >= 1:
+            if not has_letters and len(q_digits) >= 3:
                 q_conditions.append(
                     func.replace(func.replace(Associado.cpf, ".", ""), "-", "").like(f"%{q_digits}%")
                 )
             filters.append(or_(*q_conditions))
 
         if situacao:
-            ref = referencia_mes or f"{date.today().year:04d}-{date.today().month:02d}"
+            hoje = hoje_clube()
+            ref = referencia_mes or f"{hoje.year:04d}-{hoje.month:02d}"
             if situacao == SituacaoFinanceira.ATRASADO:
                 subq_atrasada = (
                     select(Fatura.associado_id)
@@ -206,7 +214,7 @@ class AssociadoRepository:
             base_query
             .offset(skip)
             .limit(limit)
-            .order_by(Associado.nome.asc())
+            .order_by(Associado.nome.asc(), Associado.id.asc())
         )
         result = await self.session.execute(query)
         items = list(result.scalars().all())
@@ -288,7 +296,8 @@ class AssociadoRepository:
                 existing_cpf.nome = m.nome
                 existing_cpf.whatsapp = m.whatsapp
                 existing_cpf.email = m.email
-                existing_cpf.dia_vencimento = m.dia_vencimento
+                if "dia_vencimento" in m.model_fields_set:
+                    existing_cpf.dia_vencimento = m.dia_vencimento
                 if m.foto_url is not None:
                     existing_cpf.foto_url = m.foto_url
                 if m.observacoes is not None:

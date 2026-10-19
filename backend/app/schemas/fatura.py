@@ -2,11 +2,14 @@
 Schemas Pydantic v2 para validação e serialização de Faturas/Mensalidades.
 """
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from app.models.fatura import FormaPagamento, StatusFatura, calcular_valor_total_fatura
+
+# Tolerância para a diferença de relógio entre o navegador da administração e o servidor
+TOLERANCIA_RELOGIO = timedelta(minutes=5)
 
 
 class FaturaBase(BaseModel):
@@ -53,8 +56,19 @@ class FaturaBaixaManual(BaseModel):
     forma_pagamento: FormaPagamento
     data_pagamento: Optional[datetime] = Field(
         default=None,
-        description="Momento do pagamento; quando omitido, o servidor usa o instante atual",
+        description="Momento do pagamento (não pode estar no futuro); quando omitido, o servidor usa o instante atual",
     )
+
+    @field_validator("data_pagamento")
+    @classmethod
+    def data_pagamento_nao_pode_ser_futura(cls, valor: Optional[datetime]) -> Optional[datetime]:
+        """Datas sem fuso horário são tratadas como UTC, como no restante da API."""
+        if valor is None:
+            return valor
+        instante = valor if valor.tzinfo else valor.replace(tzinfo=timezone.utc)
+        if instante > datetime.now(timezone.utc) + TOLERANCIA_RELOGIO:
+            raise ValueError("A data do pagamento não pode estar no futuro.")
+        return valor
 
 
 class FaturaResponse(FaturaBase):

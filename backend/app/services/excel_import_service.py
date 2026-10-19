@@ -1,6 +1,6 @@
 """
 Serviço de importação e validação de planilhas Excel (.xlsx) e arquivos (.csv).
-Validação matemática estrita de CPF, normalização de telefones e extração em lote.
+Validação matemática estrita de CPF, higienização do WhatsApp (padrão Baileys) e extração em lote.
 """
 import csv
 import io
@@ -8,6 +8,7 @@ import re
 from typing import List, Optional, Set, Tuple
 import openpyxl
 from pydantic import ValidationError
+from app.core.phone import sanitize_whatsapp_number
 from app.schemas.associado import AssociadoCreate, ImportErrorDetail
 
 
@@ -44,31 +45,6 @@ def validate_and_format_cpf(cpf_raw: str) -> str:
         raise ValueError("Dígitos verificadores do CPF inválidos.")
 
     return f"{digits[:3]}.{digits[3:6]}.{digits[6:9]}-{digits[9:]}"
-
-
-def normalize_phone_number(phone_raw: str) -> str:
-    """
-    Normaliza números de WhatsApp / telefone para o formato padrão internacional E.164.
-    Ex: (11) 98765-4321 -> +5511987654321
-    """
-    if not phone_raw:
-        return ""
-
-    raw_str = str(phone_raw).strip()
-    has_plus = raw_str.startswith("+")
-    digits = re.sub(r"\D", "", raw_str)
-
-    if not digits:
-        return ""
-
-    if has_plus:
-        return f"+{digits}"
-
-    # Padrão brasileiro: 10 dígitos (fixo com DDD) ou 11 dígitos (celular com DDD)
-    if len(digits) in (10, 11):
-        return f"+55{digits}"
-
-    return f"+{digits}"
 
 
 def _normalize_header(header: str) -> str:
@@ -183,9 +159,10 @@ def parse_excel_or_csv_bytes(
             continue
         seen_cpfs_in_file.add(formatted_cpf)
 
-        # 3. Validação e normalização de WhatsApp
-        norm_phone = normalize_phone_number(whatsapp_raw)
-        if len(norm_phone) < 10:
+        # 3. Higienização do WhatsApp para o padrão Baileys (só dígitos com DDI 55; aceita 0/00 de tronco)
+        try:
+            norm_phone = sanitize_whatsapp_number(whatsapp_raw)
+        except ValueError:
             errors.append(ImportErrorDetail(
                 linha=line_num,
                 campo="whatsapp",
@@ -202,7 +179,7 @@ def parse_excel_or_csv_bytes(
             ))
             continue
 
-        # 5. Validação final pelo schema (higieniza o WhatsApp para o padrão Baileys: só dígitos com DDI 55)
+        # 5. Validação final pelo schema (demais campos, como e-mail e tamanhos)
         try:
             parsed_members.append(AssociadoCreate(
                 nome=nome,

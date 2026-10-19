@@ -70,12 +70,25 @@ async def test_patch_atualiza_dia_vencimento_e_higieniza_whatsapp(async_client: 
     assert res.json()["whatsapp"] == "5511988887777"
 
 
-@pytest.mark.parametrize("campo", ["dia_vencimento", "whatsapp"])
+@pytest.mark.parametrize(
+    "campo",
+    ["nome", "whatsapp", "email", "status", "limite_reservas_ativas", "dia_vencimento"],
+)
 async def test_patch_rejeita_null_em_campos_obrigatorios(async_client: AsyncClient, campo):
+    """null explícito em coluna NOT NULL deve ser 422, nunca erro 500 de integridade no banco."""
     criado = await _criar_associado(async_client)
 
     res = await async_client.patch(f"/api/v1/associados/{criado['id']}", json={campo: None})
     assert res.status_code == 422
+
+
+@pytest.mark.parametrize("campo", ["foto_url", "observacoes"])
+async def test_patch_aceita_null_para_limpar_campos_opcionais(async_client: AsyncClient, campo):
+    criado = await _criar_associado(async_client, **{campo: "valor inicial"})
+
+    res = await async_client.patch(f"/api/v1/associados/{criado['id']}", json={campo: None})
+    assert res.status_code == 200
+    assert res.json()[campo] is None
 
 
 async def test_convidados_usados_mes_exposto_em_detalhe_listagem_e_patch(async_client: AsyncClient):

@@ -7,7 +7,6 @@ import pytest
 import openpyxl
 from app.services.excel_import_service import (
     validate_and_format_cpf,
-    normalize_phone_number,
     parse_excel_or_csv_bytes,
 )
 
@@ -45,12 +44,52 @@ def test_cpf_validation_invalid_length():
         validate_and_format_cpf("123456")
 
 
-def test_phone_normalization():
-    """Normaliza números de WhatsApp para formato consistente."""
-    assert normalize_phone_number("(11) 98765-4321") == "+5511987654321"
-    assert normalize_phone_number("11987654321") == "+5511987654321"
-    assert normalize_phone_number("+5511987654321") == "+5511987654321"
-    assert normalize_phone_number("11 98888 7777") == "+5511988887777"
+def _cpf_valido(base9: str) -> str:
+    """Completa 9 dígitos com os dois verificadores (módulo 11) para gerar CPFs válidos nos testes."""
+    def digito(digitos: str, peso_inicial: int) -> str:
+        soma = sum(int(d) * p for d, p in zip(digitos, range(peso_inicial, 1, -1)))
+        resto = (soma * 10) % 11
+        return str(0 if resto == 10 else resto)
+
+    d1 = digito(base9, 10)
+    return base9 + d1 + digito(base9 + d1, 11)
+
+
+def _csv_com_um_socio(whatsapp: str) -> bytes:
+    """CSV (delimitado por ';') com um único sócio válido e o WhatsApp informado."""
+    cabecalho = "Nome;CPF;WhatsApp;Email"
+    linha = f"Socio Teste;{_cpf_valido('390533447')};{whatsapp};socio.teste@club.com"
+    return "\n".join([cabecalho, linha, ""]).encode("utf-8")
+
+
+@pytest.mark.parametrize(
+    "entrada,esperado",
+    [
+        ("(11) 98765-4321", "5511987654321"),
+        ("11987654321", "5511987654321"),
+        ("+5511987654321", "5511987654321"),
+        ("11 98888 7777", "5511988887777"),
+        # prefixo de tronco 0 e de chamada internacional 00 (antes rejeitados pela dupla normalização)
+        ("(011) 98888-7777", "5511988887777"),
+        ("011988887777", "5511988887777"),
+        ("0055 11 98888-7777", "5511988887777"),
+    ],
+)
+def test_whatsapp_higienizado_pelo_importador(entrada, esperado):
+    """O importador entrega o WhatsApp no padrão Baileys (só dígitos com DDI 55), qualquer que seja a digitação."""
+    rows, errors = parse_excel_or_csv_bytes(_csv_com_um_socio(entrada), "socios.csv")
+
+    assert errors == []
+    assert [r.whatsapp for r in rows] == [esperado]
+
+
+@pytest.mark.parametrize("entrada", ["12345", "abcdefghijk", "+1 555 123 4567", "5500999999999"])
+def test_whatsapp_invalido_vira_erro_da_linha(entrada):
+    rows, errors = parse_excel_or_csv_bytes(_csv_com_um_socio(entrada), "socios.csv")
+
+    assert rows == []
+    assert [(e.linha, e.campo) for e in errors] == [(2, "whatsapp")]
+    assert "Número de WhatsApp inválido" in errors[0].motivo
 
 
 def test_parse_excel_bytes_valid_and_invalid_rows():

@@ -4,6 +4,7 @@ Configuração do ambiente de testes assíncronos com pytest e SQLite em memóri
 import pytest
 from typing import AsyncGenerator
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from app.core.database import get_db
 from app.main import app
@@ -17,6 +18,15 @@ test_engine = create_async_engine(
     echo=False,
     future=True,
 )
+
+
+@event.listens_for(test_engine.sync_engine, "connect")
+def _ativar_foreign_keys_no_sqlite(dbapi_connection, _connection_record) -> None:
+    """O SQLite ignora FOREIGN KEY por padrão; ligar faz os testes refletirem o PostgreSQL (FK, SET NULL, CASCADE)."""
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
 
 TestingSessionLocal = async_sessionmaker(
     bind=test_engine,

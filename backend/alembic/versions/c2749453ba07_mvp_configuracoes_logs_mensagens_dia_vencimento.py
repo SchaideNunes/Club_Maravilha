@@ -7,7 +7,9 @@ Feature 1 do MVP (motor de WhatsApp Baileys + painel administrativo), para Postg
 - `status_fatura_enum`: VENCIDO -> ATRASADA (RENAME VALUE preserva as faturas existentes);
 - `forma_pagamento_enum`: CARTAO_CREDITO -> CARTAO (RENAME VALUE preserva os dados) e BOLETO
   deixa de existir no modelo: faturas BOLETO viram PIX. O rótulo BOLETO permanece, inerte,
-  no tipo do Postgres, que não permite remover valores de um enum.
+  no tipo do Postgres, que não permite remover valores de um enum;
+- higieniza o WhatsApp legado dos sócios para o padrão Baileys (somente dígitos com DDI 55);
+  números que não são claramente brasileiros (ex: estrangeiros) ficam intactos para revisão manual.
 
 A migração é idempotente (IF NOT EXISTS e checagens no catálogo): o `create_all` do startup
 da API pode ter criado as tabelas novas antes de ela rodar em ambientes de desenvolvimento.
@@ -63,6 +65,34 @@ def _renomear_valor_enum(tipo: str, de: str, para: str) -> None:
         f"AND NOT EXISTS ({rotulo_existe.format(tipo=tipo, rotulo=para)}) THEN "
         f"ALTER TYPE {tipo} RENAME VALUE '{de}' TO '{para}'; "
         "END IF; END $$;"
+    )
+
+
+# Somente os dígitos do WhatsApp (remove '+', espaços, parênteses e hífens)
+_DIGITOS_DO_WHATSAPP = r"regexp_replace(whatsapp, '\D', '', 'g')"
+
+
+def _higienizar_whatsapp_legado() -> None:
+    """
+    Converte os WhatsApp já cadastrados para o padrão Baileys (somente dígitos com DDI 55).
+
+    - Sem '+' e com 10 ou 11 dígitos (DDD + número): ganha o DDI 55, inclusive o DDD 55 (RS).
+    - Dígitos com DDI brasileiro (12 ou 13 dígitos iniciados por 55): apenas perdem a pontuação.
+    - Qualquer outro valor (ex: número estrangeiro com '+', texto malformado) permanece intacto, para
+      revisão manual: o sistema só aceita telefones brasileiros e esses valores não podem ganhar o 55.
+    Idempotente: após a primeira execução nenhuma linha volta a casar com os filtros abaixo.
+    """
+    op.execute(
+        "UPDATE associados "
+        "SET whatsapp = '55' || " + _DIGITOS_DO_WHATSAPP + " "
+        "WHERE whatsapp NOT LIKE '+%' "
+        "AND length(" + _DIGITOS_DO_WHATSAPP + ") IN (10, 11)"
+    )
+    op.execute(
+        "UPDATE associados "
+        "SET whatsapp = " + _DIGITOS_DO_WHATSAPP + " "
+        r"WHERE whatsapp ~ '\D' "
+        "AND " + _DIGITOS_DO_WHATSAPP + r" ~ '^55[0-9]{10,11}$'"
     )
 
 
@@ -139,8 +169,14 @@ def upgrade() -> None:
     _renomear_valor_enum('forma_pagamento_enum', 'CARTAO_CREDITO', 'CARTAO')
     op.execute("UPDATE faturas SET forma_pagamento = 'PIX' WHERE CAST(forma_pagamento AS TEXT) = 'BOLETO'")
 
+    # 6. WhatsApp dos sócios existentes no padrão Baileys (somente dígitos com DDI 55)
+    _higienizar_whatsapp_legado()
+
 
 def downgrade() -> None:
+    # 6. (sem ação) A higienização do WhatsApp não é revertida: a pontuação original se perde e o
+    #    formato somente com dígitos também é aceito pelo schema anterior.
+
     # 5. e 4. Restaura os rótulos anteriores (faturas BOLETO convertidas em PIX não são recuperáveis)
     _renomear_valor_enum('forma_pagamento_enum', 'CARTAO', 'CARTAO_CREDITO')
     _renomear_valor_enum('status_fatura_enum', 'ATRASADA', 'VENCIDO')

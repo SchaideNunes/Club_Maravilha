@@ -14,6 +14,7 @@ export type ParametrosSectionProps = {
   onChange: <K extends keyof ParametrosConfig>(campo: K, valor: ParametrosConfig[K]) => void;
   onSalvar: () => void;
   isSalvando?: boolean;
+  disabled?: boolean;
   mensagemSucesso?: string | null;
   mensagemErro?: string | null;
 };
@@ -23,6 +24,7 @@ export function ParametrosSection({
   onChange,
   onSalvar,
   isSalvando,
+  disabled,
   mensagemSucesso,
   mensagemErro,
 }: ParametrosSectionProps): React.ReactElement {
@@ -45,8 +47,8 @@ export function ParametrosSection({
         <button
           type="button"
           onClick={onSalvar}
-          disabled={isSalvando}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap self-start sm:self-auto"
+          disabled={isSalvando || disabled}
+          className="flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap self-start sm:self-auto focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
         >
           <Save className="w-4 h-4" />
           <span>{isSalvando ? 'Salvando...' : 'Salvar configurações'}</span>
@@ -54,7 +56,10 @@ export function ParametrosSection({
       </div>
 
       {mensagemSucesso && (
-        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm flex items-center gap-2">
+        <div
+          role="status"
+          className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-sm flex items-center gap-2"
+        >
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span className="flex-1 font-medium">{mensagemSucesso}</span>
         </div>
@@ -79,9 +84,10 @@ export function ParametrosSection({
             id="cfg-valor-mensalidade"
             type="number"
             step="0.01"
+            disabled={disabled}
             value={values.valor_mensalidade}
             onChange={(e) => onChange('valor_mensalidade', e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors"
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -92,9 +98,13 @@ export function ParametrosSection({
           <input
             id="cfg-franquia-convidados"
             type="number"
+            disabled={disabled}
             value={values.franquia_convidados}
-            onChange={(e) => onChange('franquia_convidados', Number(e.target.value))}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors"
+            onChange={(e) => {
+              const val = e.target.value;
+              onChange('franquia_convidados', val === '' ? ('' as any) : Number(val));
+            }}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -106,9 +116,10 @@ export function ParametrosSection({
             id="cfg-valor-convidado-extra"
             type="number"
             step="0.01"
+            disabled={disabled}
             value={values.valor_convidado_extra}
             onChange={(e) => onChange('valor_convidado_extra', e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors"
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -119,9 +130,10 @@ export function ParametrosSection({
           <input
             id="cfg-horario-disparo"
             type="time"
+            disabled={disabled}
             value={values.horario_disparo}
             onChange={(e) => onChange('horario_disparo', e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors"
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           />
         </div>
       </div>
@@ -130,9 +142,10 @@ export function ParametrosSection({
         <label className="flex items-center gap-3 cursor-pointer">
           <input
             type="checkbox"
+            disabled={disabled}
             checked={values.automacao_ativa}
             onChange={(e) => onChange('automacao_ativa', e.target.checked)}
-            className="w-4 h-4 rounded text-slate-900 border-slate-300 focus:ring-slate-400"
+            className="w-4 h-4 rounded text-slate-900 border-slate-300 focus:ring-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <span className="text-sm font-semibold text-slate-800">Automação da régua</span>
         </label>

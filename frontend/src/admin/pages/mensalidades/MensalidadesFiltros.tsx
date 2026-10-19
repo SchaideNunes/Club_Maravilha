@@ -12,6 +12,29 @@ export type MensalidadesFiltrosProps = {
   isGerando?: boolean;
 };
 
+export function formatarMesExtenso(mesAno: string): string {
+  if (!mesAno) return '';
+  const [anoStr, mesStr] = mesAno.split('-');
+  const ano = parseInt(anoStr, 10);
+  const mesNum = parseInt(mesStr, 10);
+  if (!ano || !mesNum || mesNum < 1 || mesNum > 12) return '';
+  const meses = [
+    'janeiro',
+    'fevereiro',
+    'março',
+    'abril',
+    'maio',
+    'junho',
+    'julho',
+    'agosto',
+    'setembro',
+    'outubro',
+    'novembro',
+    'dezembro',
+  ];
+  return `${meses[mesNum - 1]}/${ano}`;
+}
+
 export function MensalidadesFiltros({
   mes,
   onMesChange,
@@ -22,6 +45,8 @@ export function MensalidadesFiltros({
   onGerarMes,
   isGerando,
 }: MensalidadesFiltrosProps): React.ReactElement {
+  const mesFormatado = formatarMesExtenso(mes);
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col md:flex-row gap-4 items-stretch md:items-end justify-between">
       <div className="flex flex-col sm:flex-row gap-4 flex-1">
@@ -73,16 +98,21 @@ export function MensalidadesFiltros({
         </div>
       </div>
 
-      <div className="flex items-center">
+      <div className="flex flex-col items-stretch sm:items-end gap-1">
         <button
           type="button"
           onClick={onGerarMes}
-          disabled={isGerando}
+          disabled={isGerando || !mes}
           className="flex items-center justify-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
         >
           <RefreshCw className={`w-4 h-4 ${isGerando ? 'animate-spin' : ''}`} />
           <span>Gerar faturas do mês</span>
         </button>
+        {mesFormatado && (
+          <span className="text-xs text-slate-500 text-center sm:text-right">
+            {mesFormatado}
+          </span>
+        )}
       </div>
     </div>
   );

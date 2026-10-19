@@ -52,7 +52,7 @@ def validar_template(texto: str) -> str:
 # Template de mensagem: não pode ser vazio e só pode usar as variáveis conhecidas
 TemplateMensagem = Annotated[
     str,
-    StringConstraints(strip_whitespace=True, min_length=1),
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=4096),
     AfterValidator(validar_template),
 ]
 
@@ -115,6 +115,16 @@ class ConfiguracaoUpdate(BaseModel):
     template_recibo: Optional[TemplateMensagem] = None
     template_d_mais_3: Optional[TemplateMensagem] = None
     template_d_mais_7: Optional[TemplateMensagem] = None
+
+    @field_validator("chave_pix", mode="before")
+    @classmethod
+    def normalizar_chave_pix(cls, valor: Any) -> Optional[str]:
+        if valor is None:
+            return None
+        if isinstance(valor, str):
+            limpo = valor.strip()
+            return limpo if limpo else None
+        return valor
 
     @field_validator(*CAMPOS_NAO_NULOS)
     @classmethod

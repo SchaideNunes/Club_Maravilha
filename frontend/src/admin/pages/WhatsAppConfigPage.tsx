@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { AlertCircle } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { extrairMensagemErro } from '../api/errors';
 import { ConexaoSection, WHATSAPP_STATUS_POLL_MS, WHATSAPP_QRCODE_POLL_MS } from './whatsapp/ConexaoSection';
@@ -10,6 +11,22 @@ import { DisparosSection, LogMensagemItem } from './whatsapp/DisparosSection';
 export { WHATSAPP_STATUS_POLL_MS, WHATSAPP_QRCODE_POLL_MS };
 
 export type FullConfiguracao = TemplatesConfig & ParametrosConfig;
+
+export function normalizarConfiguracao(d: Record<string, unknown>): FullConfiguracao {
+  return {
+    template_d_menos_3: String(d.template_d_menos_3 || ''),
+    template_d0: String(d.template_d0 || ''),
+    template_recibo: String(d.template_recibo || ''),
+    template_d_mais_3: String(d.template_d_mais_3 || ''),
+    template_d_mais_7: String(d.template_d_mais_7 || ''),
+    chave_pix: d.chave_pix !== null && d.chave_pix !== undefined ? String(d.chave_pix) : '',
+    valor_mensalidade: String(d.valor_mensalidade ?? '0.00'),
+    franquia_convidados: Number(d.franquia_convidados ?? 0),
+    valor_convidado_extra: String(d.valor_convidado_extra ?? '0.00'),
+    horario_disparo: String(d.horario_disparo || '08:00'),
+    automacao_ativa: Boolean(d.automacao_ativa ?? true),
+  };
+}
 
 const CONFIG_INICIAL: FullConfiguracao = {
   template_d_menos_3: '',
@@ -41,38 +58,36 @@ export function WhatsAppConfigPage(): React.ReactElement {
   const [statusFiltro, setStatusFiltro] = useState<string>('');
 
   // Consulta Configuração
-  const { data: configData } = useQuery<FullConfiguracao>({
+  const {
+    data: configData,
+    isLoading: isLoadingConfig,
+    isError: isErrorConfig,
+    refetch: refetchConfig,
+  } = useQuery<FullConfiguracao>({
     queryKey: ['configuracao'],
     queryFn: async () => {
       const res = await apiClient.get<Record<string, unknown>>('/configuracao');
-      const d = res.data;
-      const parsed: FullConfiguracao = {
-        template_d_menos_3: String(d.template_d_menos_3 || ''),
-        template_d0: String(d.template_d0 || ''),
-        template_recibo: String(d.template_recibo || ''),
-        template_d_mais_3: String(d.template_d_mais_3 || ''),
-        template_d_mais_7: String(d.template_d_mais_7 || ''),
-        chave_pix: d.chave_pix !== null && d.chave_pix !== undefined ? String(d.chave_pix) : '',
-        valor_mensalidade: String(d.valor_mensalidade ?? '0.00'),
-        franquia_convidados: Number(d.franquia_convidados ?? 0),
-        valor_convidado_extra: String(d.valor_convidado_extra ?? '0.00'),
-        horario_disparo: String(d.horario_disparo || '08:00'),
-        automacao_ativa: Boolean(d.automacao_ativa ?? true),
-      };
-      return parsed;
+      return normalizarConfiguracao(res.data);
     },
   });
 
-  // Atualiza o estado quando a configuração carrega
+  const inicializadoRef = useRef(false);
+
+  // Atualiza o estado na carga inicial da configuração
   useEffect(() => {
-    if (configData) {
+    if (configData && !inicializadoRef.current) {
+      inicializadoRef.current = true;
       setFormState(configData);
       ultimoSalvoRef.current = configData;
     }
   }, [configData]);
 
   // Consulta Logs
-  const { data: logsData, isLoading: isLoadingLogs } = useQuery<LogMensagemItem[]>({
+  const {
+    data: logsData,
+    isLoading: isLoadingLogs,
+    isError: isErrorLogs,
+  } = useQuery<LogMensagemItem[]>({
     queryKey: ['whatsapp-logs', etapaFiltro, statusFiltro],
     queryFn: async () => {
       const params: Record<string, string> = {};
@@ -101,14 +116,26 @@ export function WhatsAppConfigPage(): React.ReactElement {
   // Mutação: Salvar Configurações (PATCH)
   const salvarMutation = useMutation({
     mutationFn: async (diff: Record<string, unknown>) => {
-      const res = await apiClient.patch('/configuracao', diff);
+      const res = await apiClient.patch<Record<string, unknown>>('/configuracao', diff);
       return res.data;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       setMensagemErro(null);
       setMensagemSucesso('Configurações salvas');
-      ultimoSalvoRef.current = { ...formState };
-      queryClient.invalidateQueries({ queryKey: ['configuracao'] });
+
+      const normalizado = normalizarConfiguracao(data);
+
+      if (ultimoSalvoRef.current) {
+        ultimoSalvoRef.current = {
+          ...ultimoSalvoRef.current,
+          ...variables,
+          ...(variables.chave_pix === null ? { chave_pix: '' } : {}),
+        } as FullConfiguracao;
+      } else {
+        ultimoSalvoRef.current = normalizado;
+      }
+
+      queryClient.setQueryData(['configuracao'], normalizado);
     },
     onError: (err) => {
       setMensagemSucesso(null);
@@ -168,6 +195,8 @@ export function WhatsAppConfigPage(): React.ReactElement {
     salvarMutation.mutate(diff);
   };
 
+  const inputsDesabilitados = isLoadingConfig || isErrorConfig || !configData;
+
   return (
     <div className="p-8 space-y-8 max-w-7xl mx-auto">
       <div>
@@ -178,6 +207,37 @@ export function WhatsAppConfigPage(): React.ReactElement {
           Conexão Baileys, templates da régua de cobrança, parâmetros do clube e histórico de disparos.
         </p>
       </div>
+
+      {isErrorConfig && (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-4 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm"
+        >
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <span className="font-medium">Erro ao carregar configurações do WhatsApp.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => refetchConfig()}
+            className="px-3 py-1.5 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-900 font-semibold text-xs transition-colors"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
+      {configData && (!formState.chave_pix || formState.chave_pix.trim() === '') && formState.automacao_ativa && (
+        <div
+          role="alert"
+          className="flex items-center gap-2.5 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-sm"
+        >
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+          <span className="font-medium">
+            Chave Pix não configurada — as cobranças sairão sem chave
+          </span>
+        </div>
+      )}
 
       <ConexaoSection />
 
@@ -191,6 +251,7 @@ export function WhatsAppConfigPage(): React.ReactElement {
           chave_pix: formState.chave_pix,
         }}
         onChange={handleTemplateChange}
+        disabled={inputsDesabilitados}
       />
 
       <ParametrosSection
@@ -204,6 +265,7 @@ export function WhatsAppConfigPage(): React.ReactElement {
         onChange={handleParametroChange}
         onSalvar={handleSalvar}
         isSalvando={salvarMutation.isPending}
+        disabled={inputsDesabilitados}
         mensagemSucesso={mensagemSucesso}
         mensagemErro={mensagemErro}
       />
@@ -211,6 +273,7 @@ export function WhatsAppConfigPage(): React.ReactElement {
       <DisparosSection
         logs={logsData ?? []}
         isLoading={isLoadingLogs}
+        isError={isErrorLogs}
         etapaFiltro={etapaFiltro}
         onEtapaFiltroChange={setEtapaFiltro}
         statusFiltro={statusFiltro}

@@ -53,6 +53,10 @@ class LoginRateLimiter:
         falhas.append(agora)
         self._limpar_expiradas(chave, agora)
 
+    def registrar_requisicao(self, chave: str) -> None:
+        """Alias semântico para registrar uma requisição/operação contabilizada no limitador."""
+        self.registrar_falha(chave)
+
     def limpar(self, chave: str) -> None:
         self._falhas.pop(chave, None)
 
@@ -72,4 +76,7 @@ class LoginRateLimiter:
         self._falhas.clear()
 
 
+RateLimiter = LoginRateLimiter
+
 login_rate_limiter = LoginRateLimiter(max_falhas=5, janela_segundos=60, max_chaves=10000)
+teste_envio_rate_limiter = LoginRateLimiter(max_falhas=5, janela_segundos=60, max_chaves=10000)

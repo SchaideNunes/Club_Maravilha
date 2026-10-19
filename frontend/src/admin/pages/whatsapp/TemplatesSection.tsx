@@ -15,6 +15,7 @@ export type TemplatesConfig = {
 export type TemplatesSectionProps = {
   values: TemplatesConfig;
   onChange: (campo: keyof TemplatesConfig, valor: string) => void;
+  disabled?: boolean;
 };
 
 const TEMPLATE_FIELDS: Array<{ label: string; campo: keyof Omit<TemplatesConfig, 'chave_pix'> }> = [
@@ -35,7 +36,11 @@ const VARIAVEIS = [
   '{chave_pix}',
 ];
 
-export function TemplatesSection({ values, onChange }: TemplatesSectionProps): React.ReactElement {
+export function TemplatesSection({
+  values,
+  onChange,
+  disabled,
+}: TemplatesSectionProps): React.ReactElement {
   // Controle de foco e cursor para inserção de variáveis
   const ultimoCampoRef = useRef<keyof Omit<TemplatesConfig, 'chave_pix'>>('template_d0');
   const selecaoRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
@@ -111,8 +116,9 @@ export function TemplatesSection({ values, onChange }: TemplatesSectionProps): R
             <button
               key={variavel}
               type="button"
+              disabled={disabled}
               onClick={() => handleInserirVariavel(variavel)}
-              className="px-2.5 py-1 text-xs font-mono font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 transition-colors shadow-2xs focus:outline-none focus:ring-2 focus:ring-slate-400"
+              className="px-2.5 py-1 text-xs font-mono font-medium rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-400 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {variavel}
             </button>
@@ -128,10 +134,11 @@ export function TemplatesSection({ values, onChange }: TemplatesSectionProps): R
         <input
           id="cfg-chave-pix"
           type="text"
+          disabled={disabled}
           value={values.chave_pix}
           onChange={(e) => onChange('chave_pix', e.target.value)}
           placeholder="Ex: financeiro@clubmaravilha.com.br"
-          className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors"
+          className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         />
       </div>
 
@@ -147,8 +154,8 @@ export function TemplatesSection({ values, onChange }: TemplatesSectionProps): R
               <button
                 type="button"
                 onClick={() => handlePreview(campo)}
-                disabled={carregandoPreview[campo]}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors disabled:opacity-50"
+                disabled={carregandoPreview[campo] || disabled}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 text-slate-700 bg-white hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Eye className="w-3.5 h-3.5" />
                 <span>{`Pré-visualizar ${label}`}</span>
@@ -158,6 +165,7 @@ export function TemplatesSection({ values, onChange }: TemplatesSectionProps): R
             <textarea
               id={`cfg-${campo}`}
               rows={3}
+              disabled={disabled}
               value={values[campo]}
               onChange={(e) => {
                 onChange(campo, e.target.value);
@@ -168,7 +176,7 @@ export function TemplatesSection({ values, onChange }: TemplatesSectionProps): R
               }}
               onFocus={(e) => handleSelectOuFocus(campo, e)}
               onSelect={(e) => handleSelectOuFocus(campo, e)}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-sans text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-sans text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:bg-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
 
             {errosPreview[campo] && (

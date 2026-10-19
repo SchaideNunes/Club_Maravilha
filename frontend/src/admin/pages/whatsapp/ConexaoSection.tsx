@@ -29,6 +29,7 @@ export function ConexaoSection(): React.ReactElement {
     queryKey: ['whatsapp-status-page'],
     queryFn: async () => {
       const res = await apiClient.get<{ status: string }>('/whatsapp/status');
+      queryClient.setQueryData(['whatsapp-status'], res.data);
       return res.data;
     },
     refetchInterval: WHATSAPP_STATUS_POLL_MS,
@@ -44,7 +45,7 @@ export function ConexaoSection(): React.ReactElement {
       return res.data;
     },
     enabled: currentStatus === 'AGUARDANDO_QRCODE',
-    refetchInterval: WHATSAPP_QRCODE_POLL_MS,
+    refetchInterval: () => (currentStatus === 'AGUARDANDO_QRCODE' ? WHATSAPP_QRCODE_POLL_MS : false),
   });
 
   // Mutação: Desconectar

@@ -4,8 +4,9 @@ import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-rea
 import { apiClient } from '../api/client';
 import { extrairMensagemErro } from '../api/errors';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { Modal } from '../components/Modal';
 import { ResumoCards } from './mensalidades/ResumoCards';
-import { MensalidadesFiltros } from './mensalidades/MensalidadesFiltros';
+import { MensalidadesFiltros, formatarMesExtenso } from './mensalidades/MensalidadesFiltros';
 import { MensalidadesTabela } from './mensalidades/MensalidadesTabela';
 import { BaixaManualModal, FaturaItem } from './mensalidades/BaixaManualModal';
 
@@ -43,11 +44,24 @@ export function MensalidadesPage(): React.ReactElement {
   const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
   const [erroAlerta, setErroAlerta] = useState<string | null>(null);
 
+  // Modal confirmação de faturas retroativas
+  const [modalConfirmacaoAberto, setModalConfirmacaoAberto] = useState<boolean>(false);
+
   // Modal de baixa manual
   const [faturaParaBaixa, setFaturaParaBaixa] = useState<FaturaItem | null>(null);
 
   // Cobrança WhatsApp em andamento
   const [faturaCobrandoId, setFaturaCobrandoId] = useState<string | null>(null);
+
+  const handleGerarMes = () => {
+    if (!mes) return;
+    const mesCorrente = mesCorrenteNoClube();
+    if (mes < mesCorrente) {
+      setModalConfirmacaoAberto(true);
+    } else {
+      gerarMesMutation.mutate(mes);
+    }
+  };
 
   const handleMesChange = (novoMes: string) => {
     setMes(novoMes);
@@ -96,6 +110,7 @@ export function MensalidadesPage(): React.ReactElement {
       setErroAlerta(null);
       setMensagemSucesso(`${resData.criadas} criadas, ${resData.ja_existentes} já existentes`);
       queryClient.invalidateQueries({ queryKey: ['faturas'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-resumo'] });
     },
     onError: (err) => {
       setMensagemSucesso(null);
@@ -144,7 +159,10 @@ export function MensalidadesPage(): React.ReactElement {
       </div>
 
       {mensagemSucesso && (
-        <div className="flex items-center gap-2.5 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
+        <div
+          role="status"
+          className="flex items-center gap-2.5 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm"
+        >
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span className="flex-1 font-medium">{mensagemSucesso}</span>
           <button
@@ -183,7 +201,7 @@ export function MensalidadesPage(): React.ReactElement {
         onStatusChange={handleStatusChange}
         busca={buscaInput}
         onBuscaChange={handleBuscaChange}
-        onGerarMes={() => gerarMesMutation.mutate(mes)}
+        onGerarMes={handleGerarMes}
         isGerando={gerarMesMutation.isPending}
       />
 
@@ -223,6 +241,37 @@ export function MensalidadesPage(): React.ReactElement {
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={modalConfirmacaoAberto}
+        onClose={() => setModalConfirmacaoAberto(false)}
+        title="Confirmar geração de faturas passadas"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600">
+            O mês selecionado ({formatarMesExtenso(mes)}) é anterior ao mês corrente do clube. Deseja realmente gerar as faturas retroativas para este período?
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setModalConfirmacaoAberto(false)}
+              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setModalConfirmacaoAberto(false);
+                gerarMesMutation.mutate(mes);
+              }}
+              className="px-4 py-2 text-sm font-medium text-white bg-slate-900 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              Confirmar
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <BaixaManualModal
         isOpen={Boolean(faturaParaBaixa)}

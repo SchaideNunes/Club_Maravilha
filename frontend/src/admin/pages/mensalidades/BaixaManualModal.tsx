@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AlertCircle } from 'lucide-react';
 import { Modal } from '../../components/Modal';
 import { formatBRL } from '../../utils/format';
@@ -37,6 +38,7 @@ export function BaixaManualModal({
   fatura,
   onSuccess,
 }: BaixaManualModalProps): React.ReactElement | null {
+  const queryClient = useQueryClient();
   const [formaPagamento, setFormaPagamento] = useState<'PIX' | 'CARTAO' | 'DINHEIRO'>('PIX');
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
@@ -61,7 +63,10 @@ export function BaixaManualModal({
         forma_pagamento: formaPagamento,
       });
       onSuccess();
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.response?.status === 409) {
+        queryClient.invalidateQueries({ queryKey: ['faturas'] });
+      }
       const msg = extrairMensagemErro(err, 'Não foi possível confirmar o pagamento.');
       setErro(msg);
     } finally {

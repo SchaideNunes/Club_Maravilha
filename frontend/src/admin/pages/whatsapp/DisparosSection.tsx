@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, XCircle } from 'lucide-react';
 import { formatDateTime, formatWhatsApp } from '../../utils/format';
 
 export type LogMensagemItem = {
@@ -18,6 +18,7 @@ export type LogMensagemItem = {
 export type DisparosSectionProps = {
   logs: LogMensagemItem[];
   isLoading: boolean;
+  isError?: boolean;
   etapaFiltro: string;
   onEtapaFiltroChange: (etapa: string) => void;
   statusFiltro: string;
@@ -48,6 +49,7 @@ export function labelEtapaRegua(etapa: string): string {
 export function DisparosSection({
   logs,
   isLoading,
+  isError,
   etapaFiltro,
   onEtapaFiltroChange,
   statusFiltro,
@@ -125,6 +127,18 @@ export function DisparosSection({
               <tr>
                 <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
                   Carregando disparos...
+                </td>
+              </tr>
+            ) : isError ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center">
+                  <div
+                    role="alert"
+                    className="flex items-center justify-center gap-2 text-sm text-rose-600 font-medium"
+                  >
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>Erro ao carregar histórico de disparos.</span>
+                  </div>
                 </td>
               </tr>
             ) : logs.length === 0 ? (

@@ -11,8 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
+from app.api.deps import get_current_admin
 from app.core.database import get_db
 from app.core.phone import sanitize_whatsapp_number
+from app.core.rate_limit import teste_envio_rate_limiter
 from app.models.log_mensagem import EtapaRegua, LogMensagem, StatusEnvio
 from app.services.whatsapp_service import (
     WhatsAppProvider,
@@ -91,11 +93,24 @@ async def teste_envio(
     payload: WhatsAppTesteEnvioRequest,
     provider: WhatsAppProvider = Depends(get_provider),
     db: AsyncSession = Depends(get_db),
+    admin: Any = Depends(get_current_admin),
 ) -> Dict[str, Any]:
     """
     Envia uma mensagem de teste diretamente pelo provedor ativo (sem passar pela fila anti-ban)
     e grava a auditoria correspondente em LogMensagem.
+    Aplica rate limiting dedicado de 5 disparos por minuto por administrador.
     """
+    admin_id = getattr(admin, "id", None) or getattr(admin, "email", "admin")
+    chave = f"admin:{admin_id}"
+
+    if teste_envio_rate_limiter.bloqueado(chave):
+        segundos = teste_envio_rate_limiter.segundos_para_liberar(chave)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Limite de mensagens de teste excedido. Aguarde antes de tentar novamente.",
+            headers={"Retry-After": str(segundos)},
+        )
+
     try:
         destinatario = sanitize_whatsapp_number(payload.numero)
     except ValueError as exc:
@@ -103,6 +118,8 @@ async def teste_envio(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=str(exc),
         )
+
+    teste_envio_rate_limiter.registrar_requisicao(chave)
 
     texto = payload.mensagem.strip() if payload.mensagem and payload.mensagem.strip() else "Olá! Mensagem de teste do Club Maravilha."
 

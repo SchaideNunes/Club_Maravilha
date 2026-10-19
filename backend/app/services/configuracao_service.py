@@ -1,6 +1,7 @@
 """
 Serviço de negócio para a gestão de Configurações do clube e pré-visualização de templates.
 """
+import logging
 from decimal import Decimal
 from typing import Optional
 import uuid
@@ -21,6 +22,8 @@ from app.services.template_service import (
     renderizar_template,
     variaveis_da_fatura,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ConfiguracaoService:
@@ -49,8 +52,14 @@ class ConfiguracaoService:
         await self.session.refresh(config)
 
         if "horario_disparo" in campos and campos["horario_disparo"] != horario_anterior:
-            from app.jobs import billing_scheduler
-            billing_scheduler.reagendar_regua(config.horario_disparo)
+            try:
+                from app.jobs import billing_scheduler
+                billing_scheduler.reagendar_regua(config.horario_disparo)
+            except Exception:
+                logger.exception(
+                    "Falha ao reagendar a régua de cobrança para o horário %s",
+                    config.horario_disparo,
+                )
 
         return config
 
@@ -83,6 +92,8 @@ class ConfiguracaoService:
                     detail="Associado da fatura não encontrado.",
                 )
             variaveis = variaveis_da_fatura(fatura, fatura.associado, config)
+            if not variaveis.get("chave_pix"):
+                variaveis["chave_pix"] = "[CHAVE PIX NÃO CONFIGURADA]"
         else:
             convites_usados = config.franquia_convidados + 2
             convites_extras = max(0, convites_usados - config.franquia_convidados)
@@ -95,7 +106,7 @@ class ConfiguracaoService:
                 "convites_extras": str(convites_extras),
                 "valor_total": formatar_moeda_brl(valor_total),
                 "vencimento": formatar_data_br(hoje_clube()),
-                "chave_pix": config.chave_pix or "",
+                "chave_pix": config.chave_pix or "[CHAVE PIX NÃO CONFIGURADA]",
             }
 
         return renderizar_template(template, variaveis)

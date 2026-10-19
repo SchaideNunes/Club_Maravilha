@@ -1,6 +1,6 @@
 """
 Testes unitários para as correções e melhorias de Code Review (Feature 3):
-1. Catraca: carência de D+7 (DIAS_CARENCIA_BLOQUEIO) em vez de bloqueio imediato no D+1;
+1. Catraca: carência de 1 mês (DIAS_CARENCIA_BLOQUEIO) em vez de bloqueio imediato no D+1;
 2. Concorrência: ON CONFLICT DO NOTHING evita 500 mesmo com leitura inicial vazia (monkeypatch);
 3. Baixa manual: resiliência quando a fila de WhatsApp pós-commit falha;
 4. Scheduler: sessões isoladas por etapa com rollback preventivo;
@@ -62,16 +62,16 @@ def _criar_socio(numero: int, **campos) -> Associado:
 
 
 # ===========================================================================
-# 1. Catraca: tolerância de D+7 (DIAS_CARENCIA_BLOQUEIO)
+# 1. Catraca: tolerância de 1 mês (DIAS_CARENCIA_BLOQUEIO)
 # ===========================================================================
 
 @pytest.mark.asyncio
-async def test_catraca_bloqueia_somente_apos_d_mais_7(db_session):
+async def test_catraca_bloqueia_somente_apos_um_mes(db_session):
     """
     Regra: vencimento em 10/10:
     - No dia 11/10 (D+1, fatura já com status ATRASADA): sócio AINDA ESTÁ na whitelist.
-    - No dia 16/10 (D+6): sócio AINDA ESTÁ na whitelist.
-    - No dia 17/10 (D+7): sócio É EXCLUÍDO da whitelist (carência encerrada).
+    - No dia 09/11 (D+30): sócio É EXCLUÍDO da whitelist (carência encerrada).
+    - No dia 08/11 (D+29): sócio AINDA ESTÁ na whitelist.
     """
     service = CatracaService(db_session)
     socio = _criar_socio(1, facial_id="FACE_TEST_D7")
@@ -89,20 +89,20 @@ async def test_catraca_bloqueia_somente_apos_d_mais_7(db_session):
     db_session.add(fatura)
     await db_session.commit()
 
-    # D+1: 11/10 -> Dentro da tolerância de 7 dias (incluído)
+    # D+1: 11/10 -> Dentro da tolerância de 1 mês (incluído)
     wl_d1 = await service.get_whitelist(data_consulta=date(2026, 10, 11))
     membros_d1 = [m["facial_id"] for m in wl_d1["members"]]
     assert "FACE_TEST_D7" in membros_d1, "No D+1 o sócio deve permanecer autorizado na catraca."
 
-    # D+6: 16/10 -> Último dia antes do bloqueio (incluído)
-    wl_d6 = await service.get_whitelist(data_consulta=date(2026, 10, 16))
-    membros_d6 = [m["facial_id"] for m in wl_d6["members"]]
-    assert "FACE_TEST_D7" in membros_d6, "No D+6 o sócio deve permanecer autorizado na catraca."
+    # D+29: 08/11 -> Último dia antes do bloqueio (incluído)
+    wl_d29 = await service.get_whitelist(data_consulta=date(2026, 11, 8))
+    membros_d29 = [m["facial_id"] for m in wl_d29["members"]]
+    assert "FACE_TEST_D7" in membros_d29, "No D+29 o sócio deve permanecer autorizado na catraca."
 
-    # D+7: 17/10 -> Tolerância esgotada (excluído)
-    wl_d7 = await service.get_whitelist(data_consulta=date(2026, 10, 17))
-    membros_d7 = [m["facial_id"] for m in wl_d7["members"]]
-    assert "FACE_TEST_D7" not in membros_d7, "No D+7 o sócio deve ser bloqueado na catraca."
+    # D+30: 09/11 -> Tolerância esgotada (excluído)
+    wl_d30 = await service.get_whitelist(data_consulta=date(2026, 11, 9))
+    membros_d30 = [m["facial_id"] for m in wl_d30["members"]]
+    assert "FACE_TEST_D7" not in membros_d30, "No D+30 o sócio deve ser bloqueado na catraca."
 
 
 # ===========================================================================

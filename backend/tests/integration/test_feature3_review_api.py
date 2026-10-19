@@ -106,7 +106,7 @@ async def test_api_catraca_whitelist_carencia_d_mais_7(async_client: AsyncClient
     """
     Sócio ativo com fatura vencida em 10/10 e marcada ATRASADA:
     - GET /api/v1/catraca/whitelist?data=2026-10-11 (D+1) -> Sócio autorizado;
-    - GET /api/v1/catraca/whitelist?data=2026-10-17 (D+7) -> Sócio bloqueado.
+    - GET /api/v1/catraca/whitelist?data=2026-11-09 (D+30, 1 mês) -> Sócio bloqueado.
     """
     socio = _criar_socio(2, facial_id="FACE_API_D7")
     db_session.add(socio)
@@ -133,10 +133,18 @@ async def test_api_catraca_whitelist_carencia_d_mais_7(async_client: AsyncClient
     membros_d1 = [m["facial_id"] for m in resp_d1.json()["members"]]
     assert "FACE_API_D7" in membros_d1
 
-    # D+7: bloqueia
+    # D+29: ainda autorizado
+    resp_d29 = await async_client.get(
+        f"{API_CATRACA}/whitelist",
+        params={"data": "2026-11-08"},
+        headers={"X-Turnstile-Token": settings.TURNSTILE_API_TOKEN},
+    )
+    assert "FACE_API_D7" in [m["facial_id"] for m in resp_d29.json()["members"]]
+
+    # D+30: bloqueia
     resp_d7 = await async_client.get(
         f"{API_CATRACA}/whitelist",
-        params={"data": "2026-10-17"},
+        params={"data": "2026-11-09"},
         headers={"X-Turnstile-Token": settings.TURNSTILE_API_TOKEN},
     )
     assert resp_d7.status_code == 200

@@ -161,11 +161,11 @@ app/
   - **D-3**: Lembrete amigável antes do vencimento com dados da fatura e chave Pix.
   - **D0**: Notificação matinal no dia do vencimento com o código Pix Copia e Cola.
   - **D+3**: Cobrança de atraso amigável informando que o pagamento não foi identificado.
-  - **D+7**: Aviso de carência esgotada informando a suspensão do acesso físico ao clube.
+  - **D+7**: Aviso de carência informando que o acesso físico será suspenso se o atraso completar 1 mês.
   - **Idempotência**: Nenhuma mensagem de uma mesma etapa é reenviada para a mesma fatura se já houver um registro de `SUCESSO` em `LogMensagem`. Faturas pagas ou canceladas são categoricamente excluídas da régua.
 - **Política de Inadimplência e Bloqueios**:
   - **A partir do D+1 de atraso (Fatura ATRASADA)**: Bloqueio **imediato** da emissão de novos convites de convidados e de reservas de quadras esportivas (HTTP 403: *"associado possui mensalidade vencida em aberto"*).
-  - **No D+7 de atraso (`DIAS_CARENCIA_BLOQUEIO = 7`)**: Bloqueio do acesso físico na catraca (removido da whitelist diária) e transição cadastral do associado de `ATIVO` para `INADIMPLENTE`.
+  - **Com 1 mês de atraso (`DIAS_CARENCIA_BLOQUEIO = 30`)**: Bloqueio do acesso físico na catraca (removido da whitelist diária) e transição cadastral do associado de `ATIVO` para `INADIMPLENTE`. O D+7 da régua continua enviando apenas o aviso de carência (`DIAS_AVISO_CARENCIA = 7`), sem alterar o status do sócio.
   - **Reativação**: Assim que a fatura é baixada (manual ou via Pix), o associado inadimplente retorna imediatamente para o status `ATIVO`, as travas de agendamento e convites são liberadas, o recibo é enfileirado com prioridade alta e a catraca local é notificada para sincronização instantânea.
 
 #### Segurança da Informação:
@@ -532,7 +532,7 @@ sequenceDiagram
 4. **Escopo Negativo Estrito do MVP:**
    - Não foi implementado novo gateway bancário com conciliação automática de Pix (as baixas do MVP são operadas de forma manual pela administração, embora o webhook Pix legado permaneça funcional).
    - O portal mobile do sócio e a landing page institucional não foram redesenhados neste ciclo (foco integral no painel desktop do gestor).
-5. **Bloqueio de Convites e Quadras no D+1:** O bloqueio para emissão de novos convites de visitantes e reservas de quadras esportivas ocorre logo a partir do primeiro dia útil de atraso da fatura ($D+1$), enquanto a perda do acesso físico na catraca respeita a carência amigável até $D+7$.
+5. **Bloqueio de Convites e Quadras no D+1:** O bloqueio para emissão de novos convites de visitantes e reservas de quadras esportivas ocorre logo a partir do primeiro dia útil de atraso da fatura ($D+1$), enquanto a perda do acesso físico na catraca e a mudança para inadimplente só ocorrem com 1 mês de atraso ($D+30$).
 
 ### 7.2. Próximos Passos Recomendados (Pós-MVP)
 - **Persistência Distribuída de Fila (Redis + Celery / RQ):** Migrar a fila anti-ban de memória para Redis, garantindo persistência absoluta das mensagens mesmo durante deploys e reinicializações de containers.

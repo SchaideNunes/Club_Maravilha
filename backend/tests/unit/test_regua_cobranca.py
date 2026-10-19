@@ -13,7 +13,7 @@ Contrato (app/services/billing_engine_service.py):
     D_MENOS_3: vencimento == hoje + 3 -> template_d_menos_3
     D0:        vencimento == hoje     -> template_d0
     D_MAIS_3:  vencimento == hoje - 3 -> template_d_mais_3
-    D_MAIS_7:  vencimento == hoje - DIAS_CARENCIA_BLOQUEIO -> template_d_mais_7; a fatura vira ATRASADA e o
+    D_MAIS_7:  vencimento == hoje - DIAS_AVISO_CARENCIA -> template_d_mais_7; a fatura vira ATRASADA e o
                associado ATIVO vira INADIMPLENTE (BLOQUEADO é mantido), mesmo sem WhatsApp cadastrado.
 - Somente faturas PENDENTE/ATRASADA; PAGO/CANCELADO nunca recebem mensagem.
 - Mensagem = renderizar_template(template, variaveis_da_fatura(fatura, associado, configuracao)).
@@ -39,7 +39,7 @@ import pytest
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.constants import DIAS_CARENCIA_BLOQUEIO
+from app.core.constants import DIAS_AVISO_CARENCIA, DIAS_CARENCIA_BLOQUEIO
 from app.models.associado import Associado, StatusAssociado
 from app.models.fatura import Fatura, StatusFatura
 from app.models.log_mensagem import EtapaRegua, LogMensagem, StatusEnvio
@@ -135,7 +135,7 @@ async def test_cada_etapa_usa_o_template_da_configuracao_com_variaveis(db_sessio
     f_d3 = await _fatura(db_session, s_d3, HOJE + timedelta(days=3), valor=Decimal("1234.50"))
     f_d0 = await _fatura(db_session, s_d0, HOJE)
     f_dp3 = await _fatura(db_session, s_dp3, HOJE - timedelta(days=3), status=StatusFatura.ATRASADA)
-    f_dp7 = await _fatura(db_session, s_dp7, HOJE - timedelta(days=DIAS_CARENCIA_BLOQUEIO))
+    f_dp7 = await _fatura(db_session, s_dp7, HOJE - timedelta(days=DIAS_AVISO_CARENCIA))
     fila = FilaFalsa()
 
     report = await _engine(db_session, fila).processar_regua_diaria(data_referencia=HOJE)
@@ -182,7 +182,21 @@ async def test_template_padrao_inclui_chave_pix(db_session):
     assert "{" not in mensagem
 
 
-async def test_d_mais_7_marca_fatura_atrasada_e_associado_inadimplente(db_session):
+async def test_d_mais_7_marca_atrasada_mas_nao_inadimplente(db_session):
+    await _configurar(db_session)
+    socio = await _socio(db_session, "Fábio D7")
+    fatura = await _fatura(db_session, socio, HOJE - timedelta(days=DIAS_AVISO_CARENCIA))
+
+    report = await _engine(db_session, FilaFalsa()).processar_regua_diaria(data_referencia=HOJE)
+
+    await db_session.refresh(fatura)
+    await db_session.refresh(socio)
+    assert fatura.status == StatusFatura.ATRASADA
+    assert socio.status == StatusAssociado.ATIVO
+    assert report.inadimplentes_atualizados == 0
+
+
+async def test_um_mes_de_atraso_marca_fatura_atrasada_e_associado_inadimplente(db_session):
     await _configurar(db_session)
     socio = await _socio(db_session, "Fábio D7")
     fatura = await _fatura(db_session, socio, HOJE - timedelta(days=DIAS_CARENCIA_BLOQUEIO))
@@ -196,7 +210,29 @@ async def test_d_mais_7_marca_fatura_atrasada_e_associado_inadimplente(db_sessio
     assert report.inadimplentes_atualizados == 1
 
 
-async def test_d_mais_7_mantem_associado_bloqueado(db_session):
+async def test_inadimplencia_vale_para_atrasos_maiores_que_um_mes(db_session):
+    await _configurar(db_session)
+    socio = await _socio(db_session, "Atraso Longo")
+    await _fatura(db_session, socio, HOJE - timedelta(days=DIAS_CARENCIA_BLOQUEIO + 15))
+
+    await _engine(db_session, FilaFalsa()).processar_regua_diaria(data_referencia=HOJE)
+
+    await db_session.refresh(socio)
+    assert socio.status == StatusAssociado.INADIMPLENTE
+
+
+async def test_atraso_de_29_dias_ainda_nao_e_inadimplente(db_session):
+    await _configurar(db_session)
+    socio = await _socio(db_session, "Quase Inadimplente")
+    await _fatura(db_session, socio, HOJE - timedelta(days=DIAS_CARENCIA_BLOQUEIO - 1))
+
+    await _engine(db_session, FilaFalsa()).processar_regua_diaria(data_referencia=HOJE)
+
+    await db_session.refresh(socio)
+    assert socio.status == StatusAssociado.ATIVO
+
+
+async def test_um_mes_de_atraso_mantem_associado_bloqueado(db_session):
     await _configurar(db_session)
     socio = await _socio(db_session, "Gabi Bloqueada", status=StatusAssociado.BLOQUEADO)
     await _fatura(db_session, socio, HOJE - timedelta(days=DIAS_CARENCIA_BLOQUEIO))
@@ -211,7 +247,7 @@ async def test_d_mais_7_mantem_associado_bloqueado(db_session):
 async def test_faturas_pagas_ou_canceladas_nunca_recebem_mensagem(db_session):
     await _configurar(db_session)
     for status in (StatusFatura.PAGO, StatusFatura.CANCELADO):
-        for dias in (-3, 0, 3, DIAS_CARENCIA_BLOQUEIO):
+        for dias in (-3, 0, 3, DIAS_AVISO_CARENCIA):
             socio = await _socio(db_session, f"Quitado {status.value} {dias}")
             await _fatura(db_session, socio, HOJE - timedelta(days=dias), status=status)
     fila = FilaFalsa()
@@ -225,7 +261,7 @@ async def test_faturas_pagas_ou_canceladas_nunca_recebem_mensagem(db_session):
 
 async def test_vencimentos_fora_das_etapas_sao_ignorados(db_session):
     await _configurar(db_session)
-    for dias in (-4, -2, -1, 1, 2, 4, 5, 6, 8, 30):
+    for dias in (-4, -2, -1, 1, 2, 4, 5, 6, 8, 29):
         socio = await _socio(db_session, f"Fora {dias}")
         await _fatura(db_session, socio, HOJE - timedelta(days=dias))
     fila = FilaFalsa()
@@ -271,7 +307,7 @@ async def test_associado_sem_whatsapp_e_ignorado_sem_quebrar(db_session, whatsap
     assert report.erros == []
 
 
-async def test_d_mais_7_sem_whatsapp_ainda_marca_inadimplente(db_session):
+async def test_um_mes_sem_whatsapp_ainda_marca_inadimplente(db_session):
     await _configurar(db_session)
     socio = await _socio(db_session, "Sem Zap D7", whatsapp="")
     await _fatura(db_session, socio, HOJE - timedelta(days=DIAS_CARENCIA_BLOQUEIO))
@@ -282,7 +318,7 @@ async def test_d_mais_7_sem_whatsapp_ainda_marca_inadimplente(db_session):
     await db_session.refresh(socio)
     assert fila.itens == []
     assert socio.status == StatusAssociado.INADIMPLENTE
-    assert report.ignorados_sem_whatsapp == 1
+    assert report.inadimplentes_atualizados == 1
 
 
 async def test_automacao_desligada_nao_dispara_nada(db_session):
@@ -290,7 +326,7 @@ async def test_automacao_desligada_nao_dispara_nada(db_session):
     s_d0 = await _socio(db_session, "Desligado D0")
     s_d7 = await _socio(db_session, "Desligado D7")
     await _fatura(db_session, s_d0, HOJE)
-    f_d7 = await _fatura(db_session, s_d7, HOJE - timedelta(days=DIAS_CARENCIA_BLOQUEIO))
+    f_d7 = await _fatura(db_session, s_d7, HOJE - timedelta(days=DIAS_AVISO_CARENCIA))
     fila = FilaFalsa()
 
     report = await _engine(db_session, fila).processar_regua_diaria(data_referencia=HOJE)
@@ -311,7 +347,7 @@ async def test_reexecucao_apos_envio_com_sucesso_nao_reenvia(db_session):
     """Fluxo real: régua -> fila (Mock) grava LogMensagem SUCESSO -> nova execução não reenvia."""
     await _configurar(db_session)
     socios = [await _socio(db_session, f"Idem {i}") for i in range(4)]
-    for socio, dias in zip(socios, (-3, 0, 3, DIAS_CARENCIA_BLOQUEIO)):
+    for socio, dias in zip(socios, (-3, 0, 3, DIAS_AVISO_CARENCIA)):
         await _fatura(db_session, socio, HOJE - timedelta(days=dias))
     provider = MockWhatsAppProvider()
     fila = WhatsAppQueueService(

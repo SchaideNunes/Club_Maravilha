@@ -27,14 +27,14 @@ class CatracaService:
         """
         Gera a Lista Branca (Whitelist) offline autorizada para hoje:
         1. Associados ATIVOS que NÃO possuam faturas em aberto (PENDENTE/ATRASADA)
-           vencidas há mais de DIAS_CARENCIA_BLOQUEIO dias (D+7).
+           vencidas há mais de DIAS_CARENCIA_BLOQUEIO dias (1 mês).
         2. Convidados EMITIDOS cuja data de visita seja a data da consulta.
         Retorna também um checksum hash para a catraca detectar se houve alterações.
         """
         hoje = data_consulta or hoje_clube()
         limite_bloqueio = hoje - timedelta(days=DIAS_CARENCIA_BLOQUEIO)
 
-        # 1. Subquery para identificar sócios com faturas em aberto além da tolerância de bloqueio (D+7)
+        # 1. Subquery para identificar sócios com faturas em aberto além da tolerância de bloqueio (1 mês)
         subquery_bloqueados = select(Fatura.associado_id).where(
             Fatura.status.in_([StatusFatura.PENDENTE, StatusFatura.ATRASADA]),
             Fatura.data_vencimento <= limite_bloqueio,

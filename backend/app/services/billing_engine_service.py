@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 
 from app.core.clock import hoje_clube
-from app.core.constants import DIAS_CARENCIA_BLOQUEIO
+from app.core.constants import DIAS_AVISO_CARENCIA, DIAS_CARENCIA_BLOQUEIO
 from app.models.associado import StatusAssociado
 from app.models.fatura import Fatura, StatusFatura
 from app.models.log_mensagem import EtapaRegua, LogMensagem, StatusEnvio
@@ -87,7 +87,7 @@ class BillingEngineService:
             (EtapaRegua.D_MENOS_3, hoje + timedelta(days=3), configuracao.template_d_menos_3),
             (EtapaRegua.D0, hoje, configuracao.template_d0),
             (EtapaRegua.D_MAIS_3, hoje - timedelta(days=3), configuracao.template_d_mais_3),
-            (EtapaRegua.D_MAIS_7, hoje - timedelta(days=DIAS_CARENCIA_BLOQUEIO), configuracao.template_d_mais_7),
+            (EtapaRegua.D_MAIS_7, hoje - timedelta(days=DIAS_AVISO_CARENCIA), configuracao.template_d_mais_7),
         ]
         datas_alvo = {dt for _, dt, _ in dias_etapas}
 
@@ -129,12 +129,9 @@ class BillingEngineService:
                     report.ja_enviados += 1
                     continue
 
-                # D+7 atualizações de status financeiro (mesmo se sem WhatsApp)
+                # D+7: fatura passa a ATRASADA (mesmo se sem WhatsApp); inadimplência só aos 30 dias
                 if etapa == EtapaRegua.D_MAIS_7:
                     fatura.status = StatusFatura.ATRASADA
-                    if fatura.associado and fatura.associado.status == StatusAssociado.ATIVO:
-                        fatura.associado.status = StatusAssociado.INADIMPLENTE
-                        report.inadimplentes_atualizados += 1
 
                 # Verificação de telefone válido
                 if not fatura.associado or not fatura.associado.whatsapp or not fatura.associado.whatsapp.strip():
@@ -169,6 +166,8 @@ class BillingEngineService:
 
                     report.total_enfileirados += 1
 
+            await self._marcar_inadimplentes(hoje, report)
+
             await self.session.commit()
             logger.info(
                 f"[BillingEngine] Régua executada para {hoje}: "
@@ -184,6 +183,27 @@ class BillingEngineService:
             report.erros.append(str(exc))
 
         return report
+
+    async def _marcar_inadimplentes(self, hoje: date, report: BillingExecutionReport) -> None:
+        """
+        Associados ATIVOS com fatura em aberto vencida há DIAS_CARENCIA_BLOQUEIO dias (1 mês) ou mais
+        passam a INADIMPLENTE. Varredura por limite (<=), idempotente e sem envio de mensagem;
+        BLOQUEADO é mantido.
+        """
+        limite = hoje - timedelta(days=DIAS_CARENCIA_BLOQUEIO)
+        stmt = (
+            select(Fatura)
+            .options(joinedload(Fatura.associado))
+            .where(
+                Fatura.status.in_([StatusFatura.PENDENTE, StatusFatura.ATRASADA]),
+                Fatura.data_vencimento <= limite,
+            )
+        )
+        for fatura in (await self.session.execute(stmt)).scalars().all():
+            fatura.status = StatusFatura.ATRASADA
+            if fatura.associado and fatura.associado.status == StatusAssociado.ATIVO:
+                fatura.associado.status = StatusAssociado.INADIMPLENTE
+                report.inadimplentes_atualizados += 1
 
     async def cobrar_fatura_agora(
         self,

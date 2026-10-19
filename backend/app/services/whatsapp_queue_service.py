@@ -10,7 +10,7 @@ import logging
 import random
 import re
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set, Tuple
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -71,12 +71,17 @@ class WhatsAppQueueService:
         )
         self.session_factory = session_factory or AsyncSessionLocal
         self._queue: asyncio.PriorityQueue[WhatsAppQueueItem] = asyncio.PriorityQueue()
+        self._pending_keys: Set[Tuple[uuid.UUID, EtapaRegua]] = set()
         self._is_running: bool = False
         self._worker_task: Optional[asyncio.Task] = None
 
     @property
     def qsize(self) -> int:
         return self._queue.qsize()
+
+    def is_pending(self, fatura_id: uuid.UUID, etapa: EtapaRegua) -> bool:
+        """Verifica se uma etapa para determinada fatura já está pendente na fila."""
+        return (fatura_id, etapa) in self._pending_keys
 
     async def enqueue(
         self,
@@ -86,6 +91,16 @@ class WhatsAppQueueService:
         log_context: Optional[LogContext] = None,
     ) -> None:
         """Enfileira uma mensagem com prioridade e contexto de log opcionais."""
+        if log_context and log_context.fatura_id and log_context.etapa:
+            key = (log_context.fatura_id, log_context.etapa)
+            if key in self._pending_keys:
+                logger.info(
+                    f"[WhatsAppQueue] Mensagem para fatura {log_context.fatura_id} na etapa {log_context.etapa} "
+                    f"já está pendente na fila. Ignorando duplicata."
+                )
+                return
+            self._pending_keys.add(key)
+
         item = WhatsAppQueueItem(
             priority=int(priority),
             timestamp=time.time(),
@@ -113,18 +128,20 @@ class WhatsAppQueueService:
             result = await self.provider.send_message(item.phone, item.message)
             if isinstance(result, dict) and result.get("status") == "error":
                 erro_msg = str(result.get("error") or "Erro retornado pelo provedor WhatsApp")
-
-            # Delay humanizado anti-ban (somente se min_delay > 0)
-            if self.max_delay > 0:
-                delay = random.uniform(self.min_delay, self.max_delay)
-                logger.info(f"[WhatsAppQueue] Aguardando {delay:.2f}s (delay anti-ban)...")
-                await asyncio.sleep(delay)
         except Exception as err:
             logger.error(f"[WhatsAppQueue] Erro ao processar mensagem para {item.phone}: {err}")
             erro_msg = str(err)
         finally:
+            if self.max_delay > 0:
+                delay = random.uniform(self.min_delay, self.max_delay)
+                logger.info(f"[WhatsAppQueue] Aguardando {delay:.2f}s (delay anti-ban)...")
+                await asyncio.sleep(delay)
+
             if item.log_context is not None:
+                if item.log_context.fatura_id and item.log_context.etapa:
+                    self._pending_keys.discard((item.log_context.fatura_id, item.log_context.etapa))
                 await self._gravar_log(item, erro_msg)
+
             self._queue.task_done()
 
         return result

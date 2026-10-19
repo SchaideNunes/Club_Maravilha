@@ -1,212 +1,179 @@
 """
-Endpoints da API para diagnóstico, conexão via QR Code e testes de WhatsApp (Evolution API).
+Endpoints da API para diagnóstico, conexão via QR Code, testes de envio e auditoria de mensagens do WhatsApp.
 """
-from typing import Any, Dict, Optional
-from fastapi import APIRouter, Header, HTTPException, Request, status
-from fastapi.responses import HTMLResponse, JSONResponse
-from pydantic import BaseModel, Field
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+import uuid
 
-from app.core.config import settings
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
+from app.core.database import get_db
+from app.core.phone import sanitize_whatsapp_number
+from app.models.log_mensagem import EtapaRegua, LogMensagem, StatusEnvio
 from app.services.whatsapp_service import (
+    WhatsAppProvider,
     get_whatsapp_provider,
-    normalize_whatsapp_number,
 )
 
 router = APIRouter()
 
 
-class WhatsAppSendTestRequest(BaseModel):
-    phone: str = Field(..., description="Número do destinatário com DDD (ex: 11988887777)")
-    message: str = Field(..., min_length=1, description="Texto da mensagem de teste")
+def get_provider() -> WhatsAppProvider:
+    """Dependência FastAPI para injetar o provedor configurado de WhatsApp."""
+    return get_whatsapp_provider()
 
 
-@router.get("/status", summary="Verifica status da conexão da instância WhatsApp")
-async def get_status() -> Dict[str, Any]:
-    """Retorna o estado atual da conexão da instância com a rede do WhatsApp."""
-    provider = get_whatsapp_provider()
+class WhatsAppTesteEnvioRequest(BaseModel):
+    numero: str = Field(..., description="Número do destinatário com DDD")
+    mensagem: Optional[str] = Field(None, description="Texto opcional da mensagem de teste")
+
+
+class LogMensagemResponse(BaseModel):
+    id: uuid.UUID
+    associado_id: Optional[uuid.UUID] = None
+    associado_nome: Optional[str] = None
+    fatura_id: Optional[uuid.UUID] = None
+    destinatario: str
+    etapa: str
+    status: str
+    mensagem: str
+    erro: Optional[str] = None
+    enviado_em: datetime
+
+
+@router.get("/status", summary="Consulta status de conexão do WhatsApp")
+async def get_status(provider: WhatsAppProvider = Depends(get_provider)) -> Dict[str, Any]:
+    """Retorna o estado da conexão: CONECTADO, DESCONECTADO ou AGUARDANDO_QRCODE."""
     status_data = await provider.get_connection_status()
+    return {"status": status_data.get("status", "DESCONECTADO")}
 
-    instance_info = status_data.get("instance", {})
-    state = instance_info.get("state", "unknown")
-    instance_name = instance_info.get("instanceName", settings.WHATSAPP_INSTANCE_NAME)
-    connected = (state == "open")
 
+@router.get("/qrcode", summary="Obtém o QR Code para pareamento do WhatsApp")
+async def get_qrcode(provider: WhatsAppProvider = Depends(get_provider)) -> Dict[str, Any]:
+    """Retorna o status atual e o QR Code em data URL (ou null se conectado)."""
+    qr_data = await provider.get_qr_code()
     return {
-        "instance": instance_name,
-        "state": state,
-        "connected": connected,
-        "provider": settings.WHATSAPP_PROVIDER,
-        "api_url": settings.WHATSAPP_API_URL,
+        "status": qr_data.get("status", "DESCONECTADO"),
+        "qrcode": qr_data.get("qrcode"),
     }
 
 
-@router.get("/qr", summary="Obtém o QR Code para conectar o WhatsApp")
-async def get_qr(
-    request: Request,
-    accept: Optional[str] = Header(None)
-) -> Any:
-    """
-    Retorna o QR Code para leitura no celular.
-    Se acessado pelo navegador (Accept: text/html), exibe uma página visual moderna
-    com auto-refresh que detecta a leitura do QR Code automaticamente.
-    """
-    provider = get_whatsapp_provider()
-    status_data = await provider.get_connection_status()
-    instance_info = status_data.get("instance", {})
-    state = instance_info.get("state", "unknown")
-    instance_name = instance_info.get("instanceName", settings.WHATSAPP_INSTANCE_NAME)
-
-    qr_data = await provider.get_qr_code()
-    base64_img = qr_data.get("base64")
-    code = qr_data.get("code")
-
-    is_html_request = accept and "text/html" in accept
-
-    if not is_html_request:
-        return {
-            "instance": instance_name,
-            "state": state,
-            "connected": state == "open",
-            "base64": base64_img,
-            "code": code,
-        }
-
-    # Renderização HTML amigável para escaneamento no celular
-    is_connected = (state == "open")
-    qr_img_tag = (
-        f'<img src="{base64_img}" alt="QR Code WhatsApp" style="width: 260px; height: 260px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;" />'
-        if base64_img and not is_connected
-        else ""
-    )
-
-    html_content = f"""<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Conectar WhatsApp - Club Maravilha</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * {{ margin: 0; padding: 0; box-sizing: border-box; font-family: 'Outfit', sans-serif; }}
-        body {{
-            background: #f8fafc;
-            color: #0f172a;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            padding: 24px;
-        }}
-        .card {{
-            background: #ffffff;
-            border-radius: 20px;
-            padding: 36px 32px;
-            max-width: 440px;
-            width: 100%;
-            text-align: center;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
-        }}
-        .badge {{
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 14px;
-            border-radius: 9999px;
-            font-size: 13px;
-            font-weight: 600;
-            margin-bottom: 20px;
-        }}
-        .badge-open {{ background: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; }}
-        .badge-connecting {{ background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }}
-        .badge-close {{ background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }}
-        h1 {{ font-size: 22px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }}
-        p.subtitle {{ font-size: 14px; color: #64748b; margin-bottom: 24px; line-height: 1.5; }}
-        .qr-container {{
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            margin: 20px 0;
-            min-height: 270px;
-        }}
-        .steps {{
-            background: #f1f5f9;
-            border-radius: 12px;
-            padding: 16px;
-            text-align: left;
-            margin-top: 20px;
-            font-size: 13px;
-            color: #334155;
-            line-height: 1.6;
-        }}
-        .steps ol {{ padding-left: 18px; }}
-        .btn {{
-            display: inline-block;
-            margin-top: 20px;
-            padding: 10px 20px;
-            background: #0f172a;
-            color: #fff;
-            border-radius: 10px;
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            border: none;
-        }}
-        .btn:hover {{ background: #1e293b; }}
-    </style>
-</head>
-<body>
-    <div class="card">
-        <div class="badge {'badge-open' if is_connected else 'badge-connecting'}">
-            <span>●</span> {'WhatsApp Conectado' if is_connected else f'Status: {state}'}
-        </div>
-        <h1>Conectar WhatsApp</h1>
-        <p class="subtitle">Instância: <strong>{instance_name}</strong><br>
-        Integração oficial Club Maravilha</p>
-
-        <div class="qr-container">
-            {
-                '<div style="color: #059669; font-weight: 600; font-size: 16px;">'
-                '🎉 Aparelho pareado e pronto para envio de notificações!'
-                '</div>'
-                if is_connected else
-                (qr_img_tag if base64_img else '<p style="color: #64748b;">Carregando QR Code...</p>')
-            }
-        </div>
-
-        {'<div class="steps"><ol>'
-         '<li>Abra o <strong>WhatsApp</strong> no seu celular.</li>'
-         '<li>Toque em <strong>Aparelhos conectados</strong>.</li>'
-         '<li>Toque em <strong>Conectar aparelho</strong> e aponte para o QR Code acima.</li>'
-         '</ol></div>' if not is_connected else ''}
-
-        <button class="btn" onclick="window.location.reload();">🔄 Atualizar Tela</button>
-    </div>
-
-    <script>
-        // Auto-refresh a cada 3 segundos caso não esteja conectado
-        {'setTimeout(() => { fetch("/api/v1/whatsapp/status").then(r => r.json()).then(d => { if(d.connected) window.location.reload(); else setTimeout(() => window.location.reload(), 3000); }); }, 3000);' if not is_connected else ''}
-    </script>
-</body>
-</html>
-"""
-    return HTMLResponse(content=html_content, status_code=status.HTTP_200_OK)
-
-
-@router.post("/send-test", summary="Dispara uma mensagem de teste para um número de WhatsApp")
-async def send_test_message(payload: WhatsAppSendTestRequest) -> Dict[str, Any]:
-    """Envia uma mensagem de teste imediata para validar a entrega real no aparelho."""
-    provider = get_whatsapp_provider()
-    normalized_phone = normalize_whatsapp_number(payload.phone)
-
-    result = await provider.send_message(normalized_phone, payload.message)
-    if result.get("status") == "error":
+@router.post("/desconectar", summary="Desconecta a sessão do WhatsApp")
+async def desconectar(provider: WhatsAppProvider = Depends(get_provider)) -> Dict[str, Any]:
+    """Encerra a sessão ativa do WhatsApp no motor Baileys."""
+    res = await provider.logout()
+    if res.get("error"):
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Falha no envio via provedor: {result.get('error', 'Desconhecido')}"
+            detail=f"Falha ao desconectar: {res['error']}",
+        )
+    return {"status": res.get("status", "DESCONECTADO")}
+
+
+@router.post("/reiniciar", summary="Reinicia a conexão do WhatsApp")
+async def reiniciar(provider: WhatsAppProvider = Depends(get_provider)) -> Dict[str, Any]:
+    """Reinicia a conexão do motor Baileys sem apagar as credenciais salvas."""
+    res = await provider.restart()
+    if res.get("error"):
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Falha ao reiniciar: {res['error']}",
+        )
+    return {"status": res.get("status", "AGUARDANDO_QRCODE")}
+
+
+@router.post("/teste-envio", summary="Dispara uma mensagem de teste imediata")
+async def teste_envio(
+    payload: WhatsAppTesteEnvioRequest,
+    provider: WhatsAppProvider = Depends(get_provider),
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Envia uma mensagem de teste diretamente pelo provedor ativo (sem passar pela fila anti-ban)
+    e grava a auditoria correspondente em LogMensagem.
+    """
+    try:
+        destinatario = sanitize_whatsapp_number(payload.numero)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
         )
 
-    return result
+    texto = payload.mensagem.strip() if payload.mensagem and payload.mensagem.strip() else "Olá! Mensagem de teste do Club Maravilha."
+
+    res = await provider.send_message(destinatario, texto)
+
+    status_envio = StatusEnvio.SUCESSO if res.get("status") == "success" else StatusEnvio.ERRO
+    erro = res.get("error") if status_envio == StatusEnvio.ERRO else None
+
+    log = LogMensagem(
+        associado_id=None,
+        fatura_id=None,
+        destinatario=destinatario,
+        etapa=EtapaRegua.TESTE,
+        mensagem=texto,
+        status=status_envio,
+        erro=erro,
+    )
+    db.add(log)
+    await db.commit()
+    await db.refresh(log)
+
+    if status_envio == StatusEnvio.ERRO:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=str(erro or "Erro retornado pelo motor de WhatsApp"),
+        )
+
+    return {
+        "status": "SUCESSO",
+        "destinatario": destinatario,
+        "mensagem": texto,
+        "message_id": res.get("message_id") or "MSG-TESTE",
+        "log_id": str(log.id),
+    }
+
+
+@router.get("/logs", response_model=List[LogMensagemResponse], summary="Lista logs de disparos de WhatsApp")
+async def listar_logs(
+    limit: int = Query(default=50, ge=1, le=500, description="Quantidade máxima de logs a retornar"),
+    etapa: Optional[EtapaRegua] = Query(default=None, description="Filtro por etapa da régua"),
+    status: Optional[StatusEnvio] = Query(default=None, description="Filtro por status de envio"),
+    associado_id: Optional[uuid.UUID] = Query(default=None, description="Filtro por associado"),
+    db: AsyncSession = Depends(get_db),
+) -> List[LogMensagemResponse]:
+    """Retorna os logs de mensagens de WhatsApp ordenados por data de envio decrescente."""
+    stmt = select(LogMensagem).options(joinedload(LogMensagem.associado))
+
+    if etapa is not None:
+        stmt = stmt.where(LogMensagem.etapa == etapa)
+    if status is not None:
+        stmt = stmt.where(LogMensagem.status == status)
+    if associado_id is not None:
+        stmt = stmt.where(LogMensagem.associado_id == associado_id)
+
+    stmt = stmt.order_by(LogMensagem.enviado_em.desc()).limit(limit)
+
+    result = await db.execute(stmt)
+    registros = result.scalars().all()
+
+    return [
+        LogMensagemResponse(
+            id=item.id,
+            associado_id=item.associado_id,
+            associado_nome=item.associado.nome if item.associado else None,
+            fatura_id=item.fatura_id,
+            destinatario=item.destinatario,
+            etapa=item.etapa.value if hasattr(item.etapa, "value") else str(item.etapa),
+            status=item.status.value if hasattr(item.status, "value") else str(item.status),
+            mensagem=item.mensagem,
+            erro=item.erro,
+            enviado_em=item.enviado_em,
+        )
+        for item in registros
+    ]

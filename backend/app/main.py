@@ -15,6 +15,7 @@ from app.models.base import Base
 
 from app.jobs.billing_scheduler import (
     scheduler_habilitado,
+    sincronizar_horario_regua,
     start_scheduler_and_worker,
     stop_scheduler_and_worker,
 )
@@ -39,6 +40,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     executar_agendador = scheduler_habilitado()
     if executar_agendador:
         start_scheduler_and_worker()
+        try:
+            await sincronizar_horario_regua()
+        except Exception:
+            pass
 
     yield
 

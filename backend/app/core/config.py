@@ -61,9 +61,9 @@ class Settings(BaseSettings):
     # WhatsApp (Régua de Cobrança & Fila Anti-Ban)
     # Motor próprio (Baileys): microsserviço Node/TypeScript em ./whatsapp-engine
     WHATSAPP_ENGINE_URL: str = "http://localhost:3001"
-    # MOCK (padrão) apenas registra as mensagens em memória e NÃO envia nada; EVOLUTION_API é legado
-    # e só vale se informado explicitamente. A integração com o motor Baileys chega na Feature 4.
-    WHATSAPP_PROVIDER: str = "MOCK"
+    # Provedor padrão de envio: BAILEYS (motor próprio).
+    # MOCK pode ser forçado em testes ou desenvolvimento local via variável de ambiente.
+    WHATSAPP_PROVIDER: str = "BAILEYS"
     WHATSAPP_API_URL: str = "http://localhost:8080"
     WHATSAPP_API_KEY: str = "mock_whatsapp_key"
     WHATSAPP_INSTANCE_NAME: str = "club_maravilha_instance"

@@ -123,6 +123,18 @@ async def executar_regua_cobranca(
     return await engine.processar_regua_diaria(data_referencia=data_referencia)
 
 
+@router.post("/{fatura_id}/cobrar-whatsapp", status_code=status.HTTP_202_ACCEPTED)
+async def cobrar_fatura_whatsapp(
+    fatura_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Dispara cobrança avulsa no WhatsApp para uma fatura específica.
+    """
+    engine = BillingEngineService(session=db)
+    return await engine.cobrar_fatura_agora(fatura_id)
+
+
 @router.post("/{fatura_id}/baixa-manual", response_model=FaturaResponse)
 async def baixa_manual(
     fatura_id: uuid.UUID,

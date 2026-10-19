@@ -105,6 +105,9 @@ class BillingExecutionReport(BaseModel):
     d_plus_7_enviados: int = 0
     inadimplentes_atualizados: int = 0
     total_enfileirados: int = 0
+    ja_enviados: int = 0
+    ignorados_sem_whatsapp: int = 0
+    automacao_ativa: bool = True
     erros: list[str] = []
 
 

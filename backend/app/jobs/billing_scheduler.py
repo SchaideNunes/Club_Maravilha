@@ -1,19 +1,26 @@
 """
 Agendador de Tarefas em Segundo Plano (APScheduler) e Consumidor da Fila WhatsApp.
-Executa a régua diária de cobrança às 08:00 e orquestra o worker anti-ban.
+Executa a régua diária de cobrança em horário configurável e orquestra o worker anti-ban.
 """
 import asyncio
 import logging
 from typing import Optional
+from zoneinfo import ZoneInfo
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
+from app.repositories.configuracao_repository import ConfiguracaoRepository
 from app.services.billing_engine_service import BillingEngineService
 from app.services.fatura_service import FaturaService
 from app.services.whatsapp_queue_service import get_global_whatsapp_queue
 
 logger = logging.getLogger(__name__)
+
+HORARIO_DISPARO_PADRAO = "08:00"
+JOB_ID_REGUA = "regua_cobranca_diaria"
 
 # Instâncias globais gerenciadas pelo ciclo de vida da aplicação
 scheduler: Optional[AsyncIOScheduler] = None
@@ -29,9 +36,32 @@ def scheduler_habilitado() -> bool:
     return settings.ENVIRONMENT != "test" and settings.SCHEDULER_ENABLED
 
 
+def criar_trigger_regua(horario_disparo: str) -> CronTrigger:
+    """
+    Cria um CronTrigger diário no horário fornecido ("HH:MM") respeitando
+    o fuso horário da aplicação (settings.TIMEZONE).
+    Lança ValueError se o formato for inválido.
+    """
+    if not isinstance(horario_disparo, str):
+        raise ValueError("Horário de disparo deve ser uma string no formato HH:MM.")
+
+    partes = horario_disparo.strip().split(":")
+    if len(partes) != 2 or not partes[0].isdigit() or not partes[1].isdigit():
+        raise ValueError(f"Formato de horário inválido: '{horario_disparo}'. Esperado HH:MM.")
+
+    hora = int(partes[0])
+    minuto = int(partes[1])
+
+    if not (0 <= hora <= 23 and 0 <= minuto <= 59):
+        raise ValueError(f"Horário fora dos limites válidos (00:00 - 23:59): '{horario_disparo}'.")
+
+    tz = ZoneInfo(settings.TIMEZONE)
+    return CronTrigger(hour=hora, minute=minuto, timezone=tz)
+
+
 async def executar_rotina_diaria_cobranca() -> None:
     """Tarefa diária agendada: processa D-3, D-0, D+3 e D+7 com sessões isoladas para cada etapa."""
-    logger.info("[Scheduler] Iniciando disparo automático da régua diária de cobrança (08:00)...")
+    logger.info("[Scheduler] Iniciando disparo automático da régua diária de cobrança...")
 
     # 1. Marcação de faturas atrasadas (sessão isolada)
     try:
@@ -64,26 +94,57 @@ async def executar_rotina_diaria_cobranca() -> None:
         logger.error(f"[Scheduler] Erro de conexão/sessão na régua de cobrança: {exc}", exc_info=True)
 
 
-def start_scheduler_and_worker() -> None:
+def start_scheduler_and_worker(horario_disparo: str = HORARIO_DISPARO_PADRAO) -> None:
     """Inicia o scheduler diário e o worker anti-ban da fila de WhatsApp."""
     global scheduler, worker_task
+
+    trigger = criar_trigger_regua(horario_disparo)
 
     # 1. Inicia o worker assíncrono da fila anti-ban do WhatsApp
     queue = get_global_whatsapp_queue()
     worker_task = asyncio.create_task(queue.start_worker())
     logger.info("[Scheduler] Worker de fila WhatsApp iniciado com sucesso.")
 
-    # 2. Configura o agendador diário para as 08:00
+    # 2. Configura o agendador diário
     scheduler = AsyncIOScheduler()
     scheduler.add_job(
         executar_rotina_diaria_cobranca,
-        trigger=CronTrigger(hour=8, minute=0),
-        id="regua_cobranca_diaria",
+        trigger=trigger,
+        id=JOB_ID_REGUA,
         name="Régua Diária de Cobrança do Club Maravilha",
-        replace_existing=True
+        replace_existing=True,
     )
     scheduler.start()
-    logger.info("[Scheduler] APScheduler iniciado. Próximo disparo diário agendado para 08:00.")
+    logger.info(f"[Scheduler] APScheduler iniciado. Próximo disparo diário agendado para {horario_disparo}.")
+
+
+def reagendar_regua(horario_disparo: str) -> bool:
+    """
+    Reagenda o job da régua de cobrança para um novo horário.
+    Retorna True se alterado com sucesso ou False caso o scheduler não esteja rodando.
+    """
+    trigger = criar_trigger_regua(horario_disparo)
+
+    if scheduler is None or not scheduler.running:
+        logger.info("[Scheduler] Scheduler não está rodando; reagendamento ignorado.")
+        return False
+
+    scheduler.reschedule_job(JOB_ID_REGUA, trigger=trigger)
+    logger.info(f"[Scheduler] Régua reagendada com sucesso para {horario_disparo}.")
+    return True
+
+
+async def sincronizar_horario_regua() -> str:
+    """
+    Lê o horário de disparo salvo na Configuracao do banco de dados e
+    aplica o reagendamento no scheduler ativo.
+    """
+    async with AsyncSessionLocal() as session:
+        config = await ConfiguracaoRepository(session).get_or_create()
+        horario = config.horario_disparo or HORARIO_DISPARO_PADRAO
+
+    reagendar_regua(horario)
+    return horario
 
 
 async def stop_scheduler_and_worker() -> None:

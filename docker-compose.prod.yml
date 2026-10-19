@@ -53,6 +53,7 @@ services:
       # Motor WhatsApp (Baileys) acessado pela rede interna do compose, com a mesma chave do engine
       WHATSAPP_ENGINE_URL: http://whatsapp-engine:3001
       WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:?defina WHATSAPP_API_KEY no .env}
+      WHATSAPP_PROVIDER: BAILEYS
     depends_on:
       db:
         condition: service_healthy

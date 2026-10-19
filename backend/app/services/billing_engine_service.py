@@ -1,24 +1,31 @@
 """
-Motor automatizado da Régua Diária de Cobrança (D-3, D-0, D+3, D+7).
-Orquestra seleções temporais, atualizações de status financeiro e enfileiramento seguro no WhatsApp.
+Motor automatizado da Régua Diária de Cobrança (D-3, D-0, D+3, D+7) e disparo avulso.
+Orquestra seleções temporais, templates editáveis, auditoria de idempotência e enfileiramento seguro.
 """
+from datetime import date, timedelta
 import logging
-from datetime import date, datetime, timedelta, timezone
-from typing import List, Optional
+from typing import Any, Dict, Optional
+import uuid
+
+from fastapi import HTTPException, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
+
 from app.core.clock import hoje_clube
 from app.core.constants import DIAS_CARENCIA_BLOQUEIO
 from app.models.associado import StatusAssociado
 from app.models.fatura import Fatura, StatusFatura
-from app.repositories.associado_repository import AssociadoRepository
-from app.repositories.fatura_repository import FaturaRepository
+from app.models.log_mensagem import EtapaRegua, LogMensagem, StatusEnvio
+from app.repositories.configuracao_repository import ConfiguracaoRepository
 from app.schemas.fatura import BillingExecutionReport
+from app.services.template_service import renderizar_template, variaveis_da_fatura
 from app.services.whatsapp_queue_service import (
+    LogContext,
     MessagePriority,
     WhatsAppQueueService,
     get_global_whatsapp_queue,
 )
-from app.services.whatsapp_service import WhatsAppMessageBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -30,139 +37,142 @@ class BillingEngineService:
         queue_service: Optional[WhatsAppQueueService] = None,
     ) -> None:
         self.session = session
-        self.fatura_repo = FaturaRepository(session)
-        self.associado_repo = AssociadoRepository(session)
         self.queue_service = queue_service or get_global_whatsapp_queue()
 
     async def processar_regua_diaria(
         self,
-        data_referencia: Optional[date] = None
+        data_referencia: Optional[date] = None,
     ) -> BillingExecutionReport:
         """
-        Executa todas as 4 etapas da régua diária de cobrança para a data de referência.
-        Totalmente idempotente: faturas já notificadas para o estágio são ignoradas.
+        Executa as 4 etapas da régua diária de cobrança (D-3, D-0, D+3, D+7) para a data de referência.
+        Totalmente idempotente: faturas já notificadas com sucesso para a etapa são ignoradas.
+        Sem N+1: consultas de faturas e de auditoria de mensagens são agregadas.
         """
         hoje = data_referencia or hoje_clube()
-        agora = datetime.now(timezone.utc)
+
+        cfg_repo = ConfiguracaoRepository(self.session)
+        configuracao = await cfg_repo.get_or_create()
+
+        if not configuracao.automacao_ativa:
+            logger.info("[BillingEngine] Automação desativada na Configuração. Nenhuma ação executada.")
+            return BillingExecutionReport(
+                data_referencia=hoje,
+                automacao_ativa=False,
+                d_minus_3_enviados=0,
+                d_zero_enviados=0,
+                d_plus_3_enviados=0,
+                d_plus_7_enviados=0,
+                inadimplentes_atualizados=0,
+                total_enfileirados=0,
+                ja_enviados=0,
+                ignorados_sem_whatsapp=0,
+                erros=[],
+            )
 
         report = BillingExecutionReport(
             data_referencia=hoje,
+            automacao_ativa=True,
             d_minus_3_enviados=0,
             d_zero_enviados=0,
             d_plus_3_enviados=0,
             d_plus_7_enviados=0,
             inadimplentes_atualizados=0,
             total_enfileirados=0,
-            erros=[]
+            ja_enviados=0,
+            ignorados_sem_whatsapp=0,
+            erros=[],
         )
 
+        dias_etapas = [
+            (EtapaRegua.D_MENOS_3, hoje + timedelta(days=3), configuracao.template_d_menos_3),
+            (EtapaRegua.D0, hoje, configuracao.template_d0),
+            (EtapaRegua.D_MAIS_3, hoje - timedelta(days=3), configuracao.template_d_mais_3),
+            (EtapaRegua.D_MAIS_7, hoje - timedelta(days=DIAS_CARENCIA_BLOQUEIO), configuracao.template_d_mais_7),
+        ]
+        datas_alvo = {dt for _, dt, _ in dias_etapas}
+
         try:
-            # 1. D-3: Aviso Preventivo Amigável (Vencimento em hoje + 3 dias)
-            data_d3 = hoje + timedelta(days=3)
-            faturas_d3 = await self.fatura_repo.get_faturas_para_regua(
-                data_vencimento=data_d3,
-                campo_notificacao="notificado_d_minus_3_em"
+            stmt = (
+                select(Fatura)
+                .options(joinedload(Fatura.associado))
+                .where(
+                    Fatura.status.in_([StatusFatura.PENDENTE, StatusFatura.ATRASADA]),
+                    Fatura.data_vencimento.in_(datas_alvo),
+                )
             )
-            for fatura in faturas_d3:
-                if fatura.associado and fatura.associado.whatsapp:
-                    msg = WhatsAppMessageBuilder.build_d_minus_3(
-                        nome=fatura.associado.nome,
-                        valor=fatura.valor_total,
-                        data_vencimento=fatura.data_vencimento
-                    )
-                    await self.queue_service.enqueue(
-                        phone=fatura.associado.whatsapp,
-                        message=msg,
-                        priority=MessagePriority.NORMAL
-                    )
-                    fatura.notificado_d_minus_3_em = agora
-                    report.d_minus_3_enviados += 1
-                    report.total_enfileirados += 1
+            result = await self.session.execute(stmt)
+            faturas = result.scalars().all()
 
-            # 2. D-0: Disparo Matinal com Pix Copia e Cola (Vencimento Hoje)
-            faturas_d0 = await self.fatura_repo.get_faturas_para_regua(
-                data_vencimento=hoje,
-                campo_notificacao="notificado_d_zero_em"
-            )
-            for fatura in faturas_d0:
-                if fatura.associado and fatura.associado.whatsapp:
-                    pix = fatura.pix_copia_cola or "Chave Pix indisponível no momento."
-                    msg = WhatsAppMessageBuilder.build_d_zero(
-                        nome=fatura.associado.nome,
-                        valor=fatura.valor_total,
-                        data_vencimento=fatura.data_vencimento,
-                        pix_copia_cola=pix
+            fatura_ids = [f.id for f in faturas]
+            sucessos_existentes = set()
+            if fatura_ids:
+                stmt_logs = (
+                    select(LogMensagem.fatura_id, LogMensagem.etapa)
+                    .where(
+                        LogMensagem.fatura_id.in_(fatura_ids),
+                        LogMensagem.status == StatusEnvio.SUCESSO,
                     )
-                    await self.queue_service.enqueue(
-                        phone=fatura.associado.whatsapp,
-                        message=msg,
-                        priority=MessagePriority.NORMAL
-                    )
-                    fatura.notificado_d_zero_em = agora
-                    report.d_zero_enviados += 1
-                    report.total_enfileirados += 1
+                )
+                res_logs = await self.session.execute(stmt_logs)
+                sucessos_existentes = set(res_logs.all())
 
-            # 3. D+3: Inadimplência Leve com Reenvio do Pix (Vencimento há 3 dias)
-            data_dp3 = hoje - timedelta(days=3)
-            faturas_dp3 = await self.fatura_repo.get_faturas_para_regua(
-                data_vencimento=data_dp3,
-                campo_notificacao="notificado_d_plus_3_em"
-            )
-            for fatura in faturas_dp3:
-                if fatura.associado and fatura.associado.whatsapp:
-                    pix = fatura.pix_copia_cola or ""
-                    msg = WhatsAppMessageBuilder.build_d_plus_3(
-                        nome=fatura.associado.nome,
-                        valor=fatura.valor_total,
-                        data_vencimento=fatura.data_vencimento,
-                        pix_copia_cola=pix
-                    )
-                    await self.queue_service.enqueue(
-                        phone=fatura.associado.whatsapp,
-                        message=msg,
-                        priority=MessagePriority.NORMAL
-                    )
-                    fatura.notificado_d_plus_3_em = agora
-                    report.d_plus_3_enviados += 1
-                    report.total_enfileirados += 1
+            etapa_por_data = {dt: (etp, tmpl) for etp, dt, tmpl in dias_etapas}
 
-            # 4. D+7: Inadimplência Crítica & Bloqueio Físico na Catraca (Vencimento há DIAS_CARENCIA_BLOQUEIO dias)
-            data_dp7 = hoje - timedelta(days=DIAS_CARENCIA_BLOQUEIO)
-            faturas_dp7 = await self.fatura_repo.get_faturas_para_regua(
-                data_vencimento=data_dp7,
-                campo_notificacao="notificado_d_plus_7_em"
-            )
-            for fatura in faturas_dp7:
-                if fatura.associado and fatura.associado.whatsapp:
-                    pix = fatura.pix_copia_cola or ""
-                    msg = WhatsAppMessageBuilder.build_d_plus_7(
-                        nome=fatura.associado.nome,
-                        valor=fatura.valor_total,
-                        data_vencimento=fatura.data_vencimento,
-                        pix_copia_cola=pix
-                    )
-                    await self.queue_service.enqueue(
-                        phone=fatura.associado.whatsapp,
-                        message=msg,
-                        priority=MessagePriority.NORMAL
-                    )
-                    fatura.notificado_d_plus_7_em = agora
+            for fatura in faturas:
+                info = etapa_por_data.get(fatura.data_vencimento)
+                if not info:
+                    continue
+                etapa, template = info
+
+                # Idempotência por LogMensagem SUCESSO
+                if (fatura.id, etapa) in sucessos_existentes:
+                    report.ja_enviados += 1
+                    continue
+
+                # D+7 atualizações de status financeiro (mesmo se sem WhatsApp)
+                if etapa == EtapaRegua.D_MAIS_7:
                     fatura.status = StatusFatura.ATRASADA
-
-                    # Atualiza o sócio para INADIMPLENTE se ainda estiver ATIVO
-                    if fatura.associado.status != StatusAssociado.INADIMPLENTE:
+                    if fatura.associado and fatura.associado.status == StatusAssociado.ATIVO:
                         fatura.associado.status = StatusAssociado.INADIMPLENTE
                         report.inadimplentes_atualizados += 1
 
-                    report.d_plus_7_enviados += 1
-                    report.total_enfileirados += 1
+                # Verificação de telefone válido
+                if not fatura.associado or not fatura.associado.whatsapp or not fatura.associado.whatsapp.strip():
+                    report.ignorados_sem_whatsapp += 1
+                    continue
 
-            # Persiste todas as alterações de forma atômica
+                vars_fat = variaveis_da_fatura(fatura, fatura.associado, configuracao)
+                msg = renderizar_template(template, vars_fat)
+
+                await self.queue_service.enqueue(
+                    phone=fatura.associado.whatsapp,
+                    message=msg,
+                    priority=MessagePriority.NORMAL,
+                    log_context=LogContext(
+                        etapa=etapa,
+                        associado_id=fatura.associado.id,
+                        fatura_id=fatura.id,
+                    ),
+                )
+
+                if etapa == EtapaRegua.D_MENOS_3:
+                    report.d_minus_3_enviados += 1
+                elif etapa == EtapaRegua.D0:
+                    report.d_zero_enviados += 1
+                elif etapa == EtapaRegua.D_MAIS_3:
+                    report.d_plus_3_enviados += 1
+                elif etapa == EtapaRegua.D_MAIS_7:
+                    report.d_plus_7_enviados += 1
+
+                report.total_enfileirados += 1
+
             await self.session.commit()
             logger.info(
                 f"[BillingEngine] Régua executada para {hoje}: "
                 f"Total enfileirado={report.total_enfileirados}, "
-                f"Novos Inadimplentes={report.inadimplentes_atualizados}."
+                f"Novos Inadimplentes={report.inadimplentes_atualizados}, "
+                f"Já enviados={report.ja_enviados}, "
+                f"Sem WhatsApp={report.ignorados_sem_whatsapp}."
             )
 
         except Exception as exc:
@@ -171,3 +181,68 @@ class BillingEngineService:
             report.erros.append(str(exc))
 
         return report
+
+    async def cobrar_fatura_agora(
+        self,
+        fatura_id: uuid.UUID,
+        data_referencia: Optional[date] = None,
+    ) -> Dict[str, Any]:
+        """
+        Disparo avulso de cobrança pelo painel administrativo ("Cobrar agora no WhatsApp").
+        Ignora automacao_ativa e envios anteriores.
+        """
+        hoje = data_referencia or hoje_clube()
+
+        stmt = select(Fatura).options(joinedload(Fatura.associado)).where(Fatura.id == fatura_id)
+        fatura = (await self.session.execute(stmt)).scalar_one_or_none()
+
+        if not fatura:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Fatura {fatura_id} não encontrada.",
+            )
+
+        if fatura.status in (StatusFatura.PAGO, StatusFatura.CANCELADO):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Fatura com status {fatura.status.value} não pode ser cobrada.",
+            )
+
+        if not fatura.associado or not fatura.associado.whatsapp or not fatura.associado.whatsapp.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Associado não possui WhatsApp cadastrado.",
+            )
+
+        cfg_repo = ConfiguracaoRepository(self.session)
+        configuracao = await cfg_repo.get_or_create()
+
+        if fatura.data_vencimento >= hoje:
+            template = configuracao.template_d0
+            template_code = "D0"
+        else:
+            template = configuracao.template_d_mais_3
+            template_code = "D_MAIS_3"
+
+        vars_fat = variaveis_da_fatura(fatura, fatura.associado, configuracao)
+        mensagem = renderizar_template(template, vars_fat)
+
+        queue = self.queue_service or get_global_whatsapp_queue()
+        await queue.enqueue(
+            phone=fatura.associado.whatsapp,
+            message=mensagem,
+            priority=MessagePriority.NORMAL,
+            log_context=LogContext(
+                etapa=EtapaRegua.AVULSO,
+                associado_id=fatura.associado.id,
+                fatura_id=fatura.id,
+            ),
+        )
+
+        return {
+            "fatura_id": str(fatura.id),
+            "etapa": "AVULSO",
+            "template": template_code,
+            "destinatario": fatura.associado.whatsapp,
+            "mensagem": mensagem,
+        }

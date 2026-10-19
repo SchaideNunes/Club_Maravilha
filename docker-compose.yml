@@ -108,6 +108,7 @@ services:
     volumes:
       - whatsapp_auth:/app/auth
     restart: unless-stopped
+    stop_grace_period: 20s
     networks:
       - club_network
 

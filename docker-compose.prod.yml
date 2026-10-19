@@ -94,6 +94,7 @@ services:
     volumes:
       - whatsapp_auth:/app/auth
     restart: always
+    stop_grace_period: 20s
     networks:
       - club_network
 

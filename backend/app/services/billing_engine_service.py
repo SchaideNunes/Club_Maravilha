@@ -144,7 +144,7 @@ class BillingEngineService:
                 vars_fat = variaveis_da_fatura(fatura, fatura.associado, configuracao)
                 msg = renderizar_template(template, vars_fat)
 
-                await self.queue_service.enqueue(
+                enfileirado = await self.queue_service.enqueue(
                     phone=fatura.associado.whatsapp,
                     message=msg,
                     priority=MessagePriority.NORMAL,
@@ -155,16 +155,19 @@ class BillingEngineService:
                     ),
                 )
 
-                if etapa == EtapaRegua.D_MENOS_3:
-                    report.d_minus_3_enviados += 1
-                elif etapa == EtapaRegua.D0:
-                    report.d_zero_enviados += 1
-                elif etapa == EtapaRegua.D_MAIS_3:
-                    report.d_plus_3_enviados += 1
-                elif etapa == EtapaRegua.D_MAIS_7:
-                    report.d_plus_7_enviados += 1
+                if enfileirado is False:
+                    report.ja_pendentes += 1
+                else:
+                    if etapa == EtapaRegua.D_MENOS_3:
+                        report.d_minus_3_enviados += 1
+                    elif etapa == EtapaRegua.D0:
+                        report.d_zero_enviados += 1
+                    elif etapa == EtapaRegua.D_MAIS_3:
+                        report.d_plus_3_enviados += 1
+                    elif etapa == EtapaRegua.D_MAIS_7:
+                        report.d_plus_7_enviados += 1
 
-                report.total_enfileirados += 1
+                    report.total_enfileirados += 1
 
             await self.session.commit()
             logger.info(

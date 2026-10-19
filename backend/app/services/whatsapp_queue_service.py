@@ -19,7 +19,11 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.core.phone import sanitize_whatsapp_number
 from app.models.log_mensagem import EtapaRegua, LogMensagem, StatusEnvio
-from app.services.whatsapp_service import WhatsAppProvider, get_whatsapp_provider
+from app.services.whatsapp_service import (
+    StatusConexaoWhatsApp,
+    WhatsAppProvider,
+    get_whatsapp_provider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,7 @@ class WhatsAppQueueItem:
     phone: str = field(compare=False)
     message: str = field(compare=False)
     log_context: Optional[LogContext] = field(default=None, compare=False)
+    attempts: int = field(default=0, compare=False)
 
 
 class WhatsAppQueueService:
@@ -57,6 +62,8 @@ class WhatsAppQueueService:
         min_delay_seconds: Optional[float] = None,
         max_delay_seconds: Optional[float] = None,
         session_factory: Optional[async_sessionmaker[AsyncSession]] = None,
+        disconnect_retry_delay: float = 30.0,
+        max_disconnect_retries: int = 5,
     ) -> None:
         self.provider = provider or get_whatsapp_provider()
         self.min_delay = (
@@ -70,6 +77,8 @@ class WhatsAppQueueService:
             else settings.WHATSAPP_MAX_DELAY_SECONDS
         )
         self.session_factory = session_factory or AsyncSessionLocal
+        self.disconnect_retry_delay = disconnect_retry_delay
+        self.max_disconnect_retries = max_disconnect_retries
         self._queue: asyncio.PriorityQueue[WhatsAppQueueItem] = asyncio.PriorityQueue()
         self._pending_keys: Set[Tuple[uuid.UUID, EtapaRegua]] = set()
         self._is_running: bool = False
@@ -89,8 +98,8 @@ class WhatsAppQueueService:
         message: str,
         priority: MessagePriority = MessagePriority.NORMAL,
         log_context: Optional[LogContext] = None,
-    ) -> None:
-        """Enfileira uma mensagem com prioridade e contexto de log opcionais."""
+    ) -> bool:
+        """Enfileira uma mensagem com prioridade e contexto de log opcionais. Retorna True se enfileirada, False se duplicada."""
         if log_context and log_context.fatura_id and log_context.etapa:
             key = (log_context.fatura_id, log_context.etapa)
             if key in self._pending_keys:
@@ -98,7 +107,7 @@ class WhatsAppQueueService:
                     f"[WhatsAppQueue] Mensagem para fatura {log_context.fatura_id} na etapa {log_context.etapa} "
                     f"já está pendente na fila. Ignorando duplicata."
                 )
-                return
+                return False
             self._pending_keys.add(key)
 
         item = WhatsAppQueueItem(
@@ -113,6 +122,7 @@ class WhatsAppQueueService:
             f"[WhatsAppQueue] Mensagem enfileirada para {phone} (Prioridade={priority.name}). "
             f"Fila atual: {self._queue.qsize()} itens."
         )
+        return True
 
     async def process_one(self) -> Optional[Dict[str, Any]]:
         """Consome e processa um único item da fila."""
@@ -121,28 +131,85 @@ class WhatsAppQueueService:
         except asyncio.TimeoutError:
             return None
 
+        # 1. Antes do send, consulta o status da conexão com o WhatsApp
+        try:
+            status_conn = await self.provider.get_connection_status()
+            is_conectado = (
+                isinstance(status_conn, dict)
+                and status_conn.get("status") == StatusConexaoWhatsApp.CONECTADO.value
+            )
+        except Exception as exc:
+            logger.warning(f"[WhatsAppQueue] Falha ao verificar conexão: {exc}")
+            is_conectado = False
+
+        if not is_conectado:
+            if item.attempts < self.max_disconnect_retries:
+                item.attempts += 1
+                logger.warning(
+                    f"[WhatsAppQueue] WhatsApp desconectado. Devolvendo item de {item.phone} à fila "
+                    f"(tentativa {item.attempts}/{self.max_disconnect_retries})."
+                )
+                await self._queue.put(item)
+                self._queue.task_done()
+                if self.disconnect_retry_delay > 0:
+                    await asyncio.sleep(self.disconnect_retry_delay)
+                return None
+            else:
+                logger.error(
+                    f"[WhatsAppQueue] WhatsApp desconectado após {item.attempts} tentativas. "
+                    f"Registrando erro definitivo para {item.phone}."
+                )
+                erro_msg = f"WhatsApp desconectado após {item.attempts} tentativas de espera"
+                try:
+                    if item.log_context is not None:
+                        await self._gravar_log(item, erro_msg)
+                        if item.log_context.fatura_id and item.log_context.etapa:
+                            self._pending_keys.discard((item.log_context.fatura_id, item.log_context.etapa))
+                finally:
+                    self._queue.task_done()
+                return {"status": "error", "error": erro_msg, "code": "WHATSAPP_DESCONECTADO"}
+
         result = None
         erro_msg: Optional[str] = None
         try:
-            logger.info(f"[WhatsAppQueue] Despachando mensagem para {item.phone}...")
-            result = await self.provider.send_message(item.phone, item.message)
-            if isinstance(result, dict) and result.get("status") == "error":
-                erro_msg = str(result.get("error") or "Erro retornado pelo provedor WhatsApp")
-        except Exception as err:
-            logger.error(f"[WhatsAppQueue] Erro ao processar mensagem para {item.phone}: {err}")
-            erro_msg = str(err)
+            try:
+                logger.info(f"[WhatsAppQueue] Despachando mensagem para {item.phone}...")
+                result = await self.provider.send_message(item.phone, item.message)
+                if isinstance(result, dict) and result.get("status") == "error":
+                    if result.get("code") == "WHATSAPP_DESCONECTADO":
+                        if item.attempts < self.max_disconnect_retries:
+                            item.attempts += 1
+                            logger.warning(
+                                f"[WhatsAppQueue] Resposta WHATSAPP_DESCONECTADO. Devolvendo item à fila "
+                                f"(tentativa {item.attempts}/{self.max_disconnect_retries})."
+                            )
+                            await self._queue.put(item)
+                            self._queue.task_done()
+                            if self.disconnect_retry_delay > 0:
+                                await asyncio.sleep(self.disconnect_retry_delay)
+                            return result
+
+                    erro_msg = str(result.get("error") or "Erro retornado pelo provedor WhatsApp")
+            except Exception as err:
+                logger.error(f"[WhatsAppQueue] Erro ao processar mensagem para {item.phone}: {err}")
+                erro_msg = str(err)
+            finally:
+                # Grava log, descarta chave pendente e marca task_done ANTES do sleep anti-ban
+                if item.log_context is not None:
+                    try:
+                        await self._gravar_log(item, erro_msg)
+                    except Exception as err:
+                        logger.error(f"[WhatsAppQueue] Falha ao registrar LogMensagem: {err}", exc_info=True)
+                    if item.log_context.fatura_id and item.log_context.etapa:
+                        self._pending_keys.discard((item.log_context.fatura_id, item.log_context.etapa))
+
+                self._queue.task_done()
         finally:
+            # Sleep anti-ban isolado por fora do bloco de registro e finalização do item
             if self.max_delay > 0:
                 delay = random.uniform(self.min_delay, self.max_delay)
                 logger.info(f"[WhatsAppQueue] Aguardando {delay:.2f}s (delay anti-ban)...")
                 await asyncio.sleep(delay)
-
-            if item.log_context is not None:
-                if item.log_context.fatura_id and item.log_context.etapa:
-                    self._pending_keys.discard((item.log_context.fatura_id, item.log_context.etapa))
-                await self._gravar_log(item, erro_msg)
-
-            self._queue.task_done()
 
         return result
 

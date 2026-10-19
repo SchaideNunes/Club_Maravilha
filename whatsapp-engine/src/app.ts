@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import express, { Express, Request, Response, NextFunction } from 'express';
 import {
   IWhatsAppGateway,
@@ -5,6 +6,12 @@ import {
   WhatsAppDesconectadoError,
 } from './services/whatsapp-gateway.interface.js';
 import { NumeroInvalidoError } from './utils/phone.js';
+
+function safeCompare(a: string, b: string): boolean {
+  const hashA = crypto.createHash('sha256').update(a).digest();
+  const hashB = crypto.createHash('sha256').update(b).digest();
+  return crypto.timingSafeEqual(hashA, hashB);
+}
 
 export interface AppOptions {
   gateway: IWhatsAppGateway;
@@ -38,7 +45,7 @@ export function createApp(options: AppOptions): Express {
   // Middleware de autenticação obrigatória via header x-api-key
   app.use((req: Request, res: Response, next: NextFunction) => {
     const key = req.headers['x-api-key'];
-    if (!key || key !== apiKey) {
+    if (typeof key !== 'string' || !safeCompare(key, apiKey)) {
       res.status(401).json({ error: 'Não autorizado: x-api-key inválida ou ausente.' });
       return;
     }

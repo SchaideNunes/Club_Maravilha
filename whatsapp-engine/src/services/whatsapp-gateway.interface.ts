@@ -40,4 +40,5 @@ export interface IWhatsAppGateway {
   numberExists(whatsapp: string): Promise<boolean>;
   logout(): Promise<void>;
   restart(): Promise<void>;
+  stop?(): void;
 }

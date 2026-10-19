@@ -29,7 +29,7 @@ def get_provider() -> WhatsAppProvider:
 
 class WhatsAppTesteEnvioRequest(BaseModel):
     numero: str = Field(..., description="Número do destinatário com DDD")
-    mensagem: Optional[str] = Field(None, description="Texto opcional da mensagem de teste")
+    mensagem: Optional[str] = Field(None, max_length=4096, description="Texto opcional da mensagem de teste")
 
 
 class LogMensagemResponse(BaseModel):

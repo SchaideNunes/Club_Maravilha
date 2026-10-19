@@ -4,12 +4,14 @@ Executa a régua diária de cobrança em horário configurável e orquestra o wo
 """
 import asyncio
 import logging
+from datetime import timedelta
 from typing import Optional
 from zoneinfo import ZoneInfo
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from app.core.clock import agora_clube
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.repositories.configuracao_repository import ConfiguracaoRepository
@@ -21,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 HORARIO_DISPARO_PADRAO = "08:00"
 JOB_ID_REGUA = "regua_cobranca_diaria"
+JOB_ID_RECUPERACAO = "regua_cobranca_recuperacao"
 
 # Instâncias globais gerenciadas pelo ciclo de vida da aplicação
 scheduler: Optional[AsyncIOScheduler] = None
@@ -94,7 +97,47 @@ async def executar_rotina_diaria_cobranca() -> None:
         logger.error(f"[Scheduler] Erro de conexão/sessão na régua de cobrança: {exc}", exc_info=True)
 
 
-def start_scheduler_and_worker(horario_disparo: str = HORARIO_DISPARO_PADRAO) -> None:
+def agendar_recuperacao_se_necessario(horario_disparo: str) -> bool:
+    """
+    Verifica se o horário programado para hoje já passou de acordo com agora_clube().
+    Se já passou, agenda uma execução de recuperação única em run_date = now + 60s.
+    Retorna True se agendou a recuperação ou False caso contrário.
+    """
+    if scheduler is None:
+        return False
+
+    agora = agora_clube()
+    partes = horario_disparo.strip().split(":")
+    hora = int(partes[0])
+    minuto = int(partes[1])
+    horario_hoje = agora.replace(hour=hora, minute=minuto, second=0, microsecond=0)
+
+    if agora > horario_hoje:
+        run_date = agora + timedelta(seconds=60)
+        scheduler.add_job(
+            executar_rotina_diaria_cobranca,
+            trigger="date",
+            run_date=run_date,
+            id=JOB_ID_RECUPERACAO,
+            name="Recuperação da Régua Diária de Cobrança",
+            replace_existing=True,
+            misfire_grace_time=3600,
+            coalesce=True,
+            max_instances=1,
+        )
+        logger.info(
+            f"[Scheduler] Horário de disparo de hoje ({horario_disparo}) já ultrapassado ({agora.strftime('%H:%M')}). "
+            f"Recuperação agendada para {run_date}."
+        )
+        return True
+
+    return False
+
+
+def start_scheduler_and_worker(
+    horario_disparo: str = HORARIO_DISPARO_PADRAO,
+    agendar_recuperacao: bool = True,
+) -> None:
     """Inicia o scheduler diário e o worker anti-ban da fila de WhatsApp."""
     global scheduler, worker_task
 
@@ -113,7 +156,14 @@ def start_scheduler_and_worker(horario_disparo: str = HORARIO_DISPARO_PADRAO) ->
         id=JOB_ID_REGUA,
         name="Régua Diária de Cobrança do Club Maravilha",
         replace_existing=True,
+        misfire_grace_time=3600,
+        coalesce=True,
+        max_instances=1,
     )
+
+    if agendar_recuperacao:
+        agendar_recuperacao_se_necessario(horario_disparo)
+
     scheduler.start()
     logger.info(f"[Scheduler] APScheduler iniciado. Próximo disparo diário agendado para {horario_disparo}.")
 

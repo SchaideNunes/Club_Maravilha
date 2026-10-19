@@ -13,13 +13,20 @@ from app.core.database import async_engine
 from app.models.base import Base
 
 
+import logging
+
+from app.core.database import AsyncSessionLocal
+from app.repositories.configuracao_repository import ConfiguracaoRepository
 from app.jobs.billing_scheduler import (
+    HORARIO_DISPARO_PADRAO,
     scheduler_habilitado,
     sincronizar_horario_regua,
     start_scheduler_and_worker,
     stop_scheduler_and_worker,
 )
 from app.services.whatsapp_service import check_whatsapp_provider_on_startup
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -39,11 +46,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Inicia scheduler e worker em segundo plano, exceto em modo de teste ou com SCHEDULER_ENABLED=false
     executar_agendador = scheduler_habilitado()
     if executar_agendador:
-        start_scheduler_and_worker()
+        horario = HORARIO_DISPARO_PADRAO
         try:
-            await sincronizar_horario_regua()
+            async with AsyncSessionLocal() as session:
+                config = await ConfiguracaoRepository(session).get_or_create()
+                if config.horario_disparo:
+                    horario = config.horario_disparo
         except Exception:
-            pass
+            logger.exception("[Main] Falha ao ler horario da Configuracao no startup")
+        start_scheduler_and_worker(horario)
 
     yield
 

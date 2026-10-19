@@ -28,7 +28,7 @@ RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
 
 # Diretório da sessão autenticada persistida em volume Docker
-RUN mkdir -p /app/auth && chown -R node:node /app/auth /app
+RUN mkdir -p /app/auth && chown -R node:node /app/auth
 
 USER node
 

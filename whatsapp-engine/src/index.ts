@@ -8,7 +8,13 @@ import {
   hasRegisteredSession,
 } from './services/baileys.socket-factory.js';
 
+import { createShutdownHandler } from './shutdown.js';
+
 function bootstrap(): void {
+  process.on('unhandledRejection', (err) => {
+    console.error('[whatsapp-engine] unhandledRejection:', err);
+  });
+
   const config = loadConfig(process.env);
 
   const socketFactory = createBaileysSocketFactory(config.authDir, config.logLevel);
@@ -36,16 +42,10 @@ function bootstrap(): void {
     console.log(`[whatsapp-engine] Servidor rodando na porta ${config.port}`);
   });
 
-  const shutdown = () => {
-    console.log('[whatsapp-engine] Encerrando serviço graciosamente...');
-    server.close(() => {
-      service.stop();
-      process.exit(0);
-    });
-  };
+  const shutdown = createShutdownHandler(service, server, (code) => process.exit(code ?? 0));
 
-  process.on('SIGINT', shutdown);
-  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', () => void shutdown());
+  process.on('SIGTERM', () => void shutdown());
 }
 
 bootstrap();

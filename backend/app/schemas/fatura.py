@@ -5,7 +5,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict, Optional
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_serializer, field_validator, model_validator
 from app.core import clock
 from app.models.fatura import FormaPagamento, StatusFatura, calcular_valor_total_fatura
 
@@ -135,11 +135,34 @@ class MarcarAtrasadasResponse(BaseModel):
     atualizadas: int
 
 
+class FaturasResumoResponse(BaseModel):
+    """Resumo agregado das faturas do mês (ignora status, busca e paginação; exclui CANCELADO)."""
+    total: int
+    pagas: int
+    pendentes: int
+    atrasadas: int
+    valor_total: Decimal
+    valor_recebido: Decimal
+
+    @field_serializer("valor_total", "valor_recebido", mode="plain", when_used="json")
+    def serializar_decimais(self, v: Decimal) -> str:
+        return f"{Decimal(str(v)):.2f}"
+
+    def model_dump(self, *args, **kwargs):
+        data = super().model_dump(*args, **kwargs)
+        if "valor_total" in data and isinstance(data["valor_total"], (Decimal, float, int)):
+            data["valor_total"] = f"{Decimal(str(data['valor_total'])):.2f}"
+        if "valor_recebido" in data and isinstance(data["valor_recebido"], (Decimal, float, int)):
+            data["valor_recebido"] = f"{Decimal(str(data['valor_recebido'])):.2f}"
+        return data
+
+
 class FaturaPainelItemResponse(BaseModel):
     """Item resumido da fatura para listagem paginada no painel administrativo."""
     id: uuid.UUID
     associado_id: uuid.UUID
     associado_nome: str
+    associado_cpf: str
     referencia_mes: str
     data_vencimento: date
     valor_base: Decimal
@@ -155,6 +178,24 @@ class FaturaPainelItemResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_serializer(
+        "valor_base",
+        "valor_convidados_excedentes",
+        "valor_desconto",
+        "valor_total",
+        mode="plain",
+        when_used="json",
+    )
+    def serializar_decimais(self, v: Decimal) -> str:
+        return f"{Decimal(str(v)):.2f}"
+
+    def model_dump(self, *args, **kwargs):
+        data = super().model_dump(*args, **kwargs)
+        for campo in ("valor_base", "valor_convidados_excedentes", "valor_desconto", "valor_total"):
+            if campo in data and isinstance(data[campo], (Decimal, float, int)):
+                data[campo] = f"{Decimal(str(data[campo])):.2f}"
+        return data
+
 
 class PaginatedFaturasResponse(BaseModel):
     """Resposta paginada da listagem de faturas."""
@@ -163,4 +204,5 @@ class PaginatedFaturasResponse(BaseModel):
     page: int
     page_size: int
     total_pages: int
+    resumo: FaturasResumoResponse
 

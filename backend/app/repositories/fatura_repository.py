@@ -3,8 +3,9 @@ Repositório de dados para a entidade de Faturas / Mensalidades.
 """
 import uuid
 from datetime import date
-from typing import List, Optional
-from sqlalchemy import select
+from decimal import Decimal
+from typing import Any, Dict, List, Optional
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.fatura import Fatura, StatusFatura
@@ -89,3 +90,40 @@ class FaturaRepository:
         )
         result = await self.session.execute(query)
         return list(result.scalars().all())
+
+    async def get_resumo(
+        self,
+        referencia_mes: Optional[str] = None,
+        associado_id: Optional[uuid.UUID] = None,
+    ) -> Dict[str, Any]:
+        """
+        Calcula o resumo agregado do mês para o painel de mensalidades:
+        total, pagas, pendentes, atrasadas, valor_total e valor_recebido.
+        Exclui status CANCELADO. Sem faturas -> zeros.
+        """
+        query = select(
+            func.count(Fatura.id).label("total"),
+            func.count(case((Fatura.status == StatusFatura.PAGO, Fatura.id))).label("pagas"),
+            func.count(case((Fatura.status == StatusFatura.PENDENTE, Fatura.id))).label("pendentes"),
+            func.count(case((Fatura.status == StatusFatura.ATRASADA, Fatura.id))).label("atrasadas"),
+            func.coalesce(func.sum(Fatura.valor_total), Decimal("0.00")).label("valor_total"),
+            func.coalesce(
+                func.sum(case((Fatura.status == StatusFatura.PAGO, Fatura.valor_total), else_=Decimal("0.00"))),
+                Decimal("0.00"),
+            ).label("valor_recebido"),
+        ).where(Fatura.status != StatusFatura.CANCELADO)
+
+        if referencia_mes:
+            query = query.where(Fatura.referencia_mes == referencia_mes)
+        if associado_id:
+            query = query.where(Fatura.associado_id == associado_id)
+
+        row = (await self.session.execute(query)).one()
+        return {
+            "total": int(row.total or 0),
+            "pagas": int(row.pagas or 0),
+            "pendentes": int(row.pendentes or 0),
+            "atrasadas": int(row.atrasadas or 0),
+            "valor_total": Decimal(str(row.valor_total or "0.00")),
+            "valor_recebido": Decimal(str(row.valor_recebido or "0.00")),
+        }

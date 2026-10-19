@@ -32,6 +32,7 @@ from app.schemas.fatura import (
     FaturaBaixaManual,
     FaturaCreate,
     FaturaPainelItemResponse,
+    FaturasResumoResponse,
     GeracaoFaturasResponse,
     PaginatedFaturasResponse,
 )
@@ -124,7 +125,11 @@ class FaturaService:
         Ordenação padrão: nome do associado asc, depois vencimento desc.
         """
         query = (
-            select(Fatura, Associado.nome.label("associado_nome"))
+            select(
+                Fatura,
+                Associado.nome.label("associado_nome"),
+                Associado.cpf.label("associado_cpf"),
+            )
             .join(Associado, Fatura.associado_id == Associado.id)
         )
         count_query = (
@@ -177,6 +182,7 @@ class FaturaService:
                 id=f.id,
                 associado_id=f.associado_id,
                 associado_nome=nome,
+                associado_cpf=cpf,
                 referencia_mes=f.referencia_mes,
                 data_vencimento=f.data_vencimento,
                 valor_base=f.valor_base,
@@ -190,8 +196,14 @@ class FaturaService:
                 data_pagamento=f.data_pagamento,
                 lembretes_ativos=f.lembretes_ativos,
             )
-            for f, nome in rows
+            for f, nome, cpf in rows
         ]
+
+        resumo_dict = await self.fatura_repo.get_resumo(
+            referencia_mes=referencia_mes,
+            associado_id=associado_id,
+        )
+        resumo = FaturasResumoResponse(**resumo_dict)
 
         total_pages = math.ceil(total / page_size) if total > 0 else 0
 
@@ -201,6 +213,7 @@ class FaturaService:
             page=page,
             page_size=page_size,
             total_pages=total_pages,
+            resumo=resumo,
         )
 
     async def create_fatura(self, data: FaturaCreate) -> Fatura:

@@ -1,11 +1,12 @@
 """
 Schemas Pydantic v2 para as Configurações do clube (singleton) editáveis pelo painel.
 """
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from string import Formatter
 from typing import Annotated, Any, Optional
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints, field_serializer, field_validator
 from app.models.configuracao import VARIAVEIS_TEMPLATE
 from app.schemas.validators import rejeitar_null
 
@@ -87,6 +88,19 @@ class ConfiguracaoResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+    @field_validator("valor_mensalidade", "valor_convidado_extra", mode="before")
+    @classmethod
+    def preparar_decimais(cls, v: Any) -> Any:
+        return v
+
+    def model_dump(self, *args, **kwargs):
+        data = super().model_dump(*args, **kwargs)
+        if "valor_mensalidade" in data and isinstance(data["valor_mensalidade"], (Decimal, float, int)):
+            data["valor_mensalidade"] = f"{Decimal(str(data['valor_mensalidade'])):.2f}"
+        if "valor_convidado_extra" in data and isinstance(data["valor_convidado_extra"], (Decimal, float, int)):
+            data["valor_convidado_extra"] = f"{Decimal(str(data['valor_convidado_extra'])):.2f}"
+        return data
+
 
 class ConfiguracaoUpdate(BaseModel):
     """Atualização parcial: somente os campos enviados são alterados."""
@@ -106,3 +120,12 @@ class ConfiguracaoUpdate(BaseModel):
     @classmethod
     def campos_obrigatorios_nao_aceitam_null(cls, valor: Any) -> Any:
         return rejeitar_null(valor)
+
+
+class PreviewTemplateRequest(BaseModel):
+    template: TemplateMensagem
+    fatura_id: Optional[uuid.UUID] = None
+
+
+class PreviewTemplateResponse(BaseModel):
+    mensagem: str

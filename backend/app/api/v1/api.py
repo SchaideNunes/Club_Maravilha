@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     associados,
     auth,
     catraca,
+    configuracao,
     convidados,
     dashboard,
     faturas,
@@ -39,6 +40,7 @@ admin_router.include_router(faturas.router, prefix="/faturas", tags=["Financeiro
 admin_router.include_router(agendamentos.router, prefix="/agendamentos", tags=["Quadras Esportivas"])
 admin_router.include_router(convidados.router, prefix="/convidados", tags=["Gestão de Convidados & Visitantes"])
 admin_router.include_router(whatsapp.router, prefix="/whatsapp", tags=["WhatsApp & Automação"])
+admin_router.include_router(configuracao.router, prefix="/configuracao", tags=["Central de Configurações"])
 admin_router.include_router(dashboard.router, prefix="/dashboard", tags=["Dashboard"])
 
 api_router.include_router(admin_router)

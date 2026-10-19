@@ -1,26 +1,10 @@
 """
 Repositório de dados da Configuração do clube (singleton, sempre id = 1).
 """
-from typing import Callable
 from sqlalchemy import select
-from sqlalchemy.dialects import postgresql, sqlite
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.configuracao import CONFIGURACAO_ID, Configuracao
-
-# INSERT do dialeto: somente PostgreSQL e SQLite oferecem ON CONFLICT ... DO NOTHING no SQLAlchemy
-_INSERT_POR_DIALETO: dict[str, Callable] = {
-    "postgresql": postgresql.insert,
-    "sqlite": sqlite.insert,
-}
-
-
-def _insert_do_dialeto(dialeto: str) -> Callable:
-    try:
-        return _INSERT_POR_DIALETO[dialeto]
-    except KeyError:
-        raise NotImplementedError(
-            f"ConfiguracaoRepository.get_or_create não suporta o dialeto '{dialeto}'."
-        ) from None
+from app.repositories._dialect import _insert_do_dialeto, insert_do_dialeto
 
 
 class ConfiguracaoRepository:

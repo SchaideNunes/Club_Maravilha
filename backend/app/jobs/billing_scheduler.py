@@ -30,26 +30,38 @@ def scheduler_habilitado() -> bool:
 
 
 async def executar_rotina_diaria_cobranca() -> None:
-    """Tarefa diária agendada: processa D-3, D-0, D+3 e D+7."""
+    """Tarefa diária agendada: processa D-3, D-0, D+3 e D+7 com sessões isoladas para cada etapa."""
     logger.info("[Scheduler] Iniciando disparo automático da régua diária de cobrança (08:00)...")
-    async with AsyncSessionLocal() as session:
-        try:
-            fatura_service = FaturaService(session)
-            atualizadas = await fatura_service.marcar_faturas_atrasadas()
-            logger.info(f"[Scheduler] Marcação de faturas atrasadas concluída: {atualizadas} faturas atualizadas.")
-        except Exception as exc:
-            logger.error(f"[Scheduler] Falha na marcação de faturas atrasadas: {exc}", exc_info=True)
 
-        try:
-            engine = BillingEngineService(session=session)
-            report = await engine.processar_regua_diaria()
-            logger.info(
-                f"[Scheduler] Régua diária concluída com sucesso: "
-                f"{report.total_enfileirados} mensagens enfileiradas, "
-                f"{report.inadimplentes_atualizados} sócios marcados como inadimplentes."
-            )
-        except Exception as exc:
-            logger.error(f"[Scheduler] Falha na execução da régua de cobrança: {exc}", exc_info=True)
+    # 1. Marcação de faturas atrasadas (sessão isolada)
+    try:
+        async with AsyncSessionLocal() as session:
+            try:
+                fatura_service = FaturaService(session)
+                atualizadas = await fatura_service.marcar_faturas_atrasadas()
+                logger.info(f"[Scheduler] Marcação de faturas atrasadas concluída: {atualizadas} faturas atualizadas.")
+            except Exception as exc:
+                await session.rollback()
+                logger.error(f"[Scheduler] Falha na marcação de faturas atrasadas: {exc}", exc_info=True)
+    except Exception as exc:
+        logger.error(f"[Scheduler] Erro de conexão/sessão na marcação de faturas atrasadas: {exc}", exc_info=True)
+
+    # 2. Execução da régua de cobrança (sessão isolada)
+    try:
+        async with AsyncSessionLocal() as session:
+            try:
+                engine = BillingEngineService(session=session)
+                report = await engine.processar_regua_diaria()
+                logger.info(
+                    f"[Scheduler] Régua diária concluída com sucesso: "
+                    f"{report.total_enfileirados} mensagens enfileiradas, "
+                    f"{report.inadimplentes_atualizados} sócios marcados como inadimplentes."
+                )
+            except Exception as exc:
+                await session.rollback()
+                logger.error(f"[Scheduler] Falha na execução da régua de cobrança: {exc}", exc_info=True)
+    except Exception as exc:
+        logger.error(f"[Scheduler] Erro de conexão/sessão na régua de cobrança: {exc}", exc_info=True)
 
 
 def start_scheduler_and_worker() -> None:

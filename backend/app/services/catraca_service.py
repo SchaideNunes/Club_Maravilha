@@ -5,11 +5,13 @@ Fornece lista autorizada sincronizável e processamento de eventos de passagem f
 import hashlib
 import json
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from sqlalchemy import and_, not_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.clock import hoje_clube
 from app.core.config import settings
+from app.core.constants import DIAS_CARENCIA_BLOQUEIO
 from app.models.associado import Associado, StatusAssociado
 from app.models.convidado import Convidado, StatusConvidado
 from app.models.fatura import Fatura, StatusFatura
@@ -24,23 +26,26 @@ class CatracaService:
     async def get_whitelist(self, data_consulta: Optional[date] = None) -> Dict[str, Any]:
         """
         Gera a Lista Branca (Whitelist) offline autorizada para hoje:
-        1. Associados ATIVOS que NÃO possuam faturas com status ATRASADA.
+        1. Associados ATIVOS que NÃO possuam faturas em aberto (PENDENTE/ATRASADA)
+           vencidas há mais de DIAS_CARENCIA_BLOQUEIO dias (D+7).
         2. Convidados EMITIDOS cuja data de visita seja a data da consulta.
         Retorna também um checksum hash para a catraca detectar se houve alterações.
         """
-        hoje = data_consulta or date.today()
+        hoje = data_consulta or hoje_clube()
+        limite_bloqueio = hoje - timedelta(days=DIAS_CARENCIA_BLOQUEIO)
 
-        # 1. Subquery para identificar sócios com faturas atrasadas
-        subquery_atrasados = select(Fatura.associado_id).where(
-            Fatura.status == StatusFatura.ATRASADA
+        # 1. Subquery para identificar sócios com faturas em aberto além da tolerância de bloqueio (D+7)
+        subquery_bloqueados = select(Fatura.associado_id).where(
+            Fatura.status.in_([StatusFatura.PENDENTE, StatusFatura.ATRASADA]),
+            Fatura.data_vencimento <= limite_bloqueio,
         ).scalar_subquery()
 
-        # 2. Busca associados ativos e adimplentes
+        # 2. Busca associados ativos e adimplentes (não bloqueados por faturas vencidas além da tolerância)
         query_associados = select(Associado).where(
             and_(
                 Associado.status == StatusAssociado.ATIVO,
                 Associado.facial_id.is_not(None),
-                not_(Associado.id.in_(subquery_atrasados))
+                not_(Associado.id.in_(subquery_bloqueados))
             )
         )
         res_associados = await self.session.execute(query_associados)

@@ -6,6 +6,8 @@ import logging
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.clock import hoje_clube
+from app.core.constants import DIAS_CARENCIA_BLOQUEIO
 from app.models.associado import StatusAssociado
 from app.models.fatura import Fatura, StatusFatura
 from app.repositories.associado_repository import AssociadoRepository
@@ -40,7 +42,7 @@ class BillingEngineService:
         Executa todas as 4 etapas da régua diária de cobrança para a data de referência.
         Totalmente idempotente: faturas já notificadas para o estágio são ignoradas.
         """
-        hoje = data_referencia or date.today()
+        hoje = data_referencia or hoje_clube()
         agora = datetime.now(timezone.utc)
 
         report = BillingExecutionReport(
@@ -124,8 +126,8 @@ class BillingEngineService:
                     report.d_plus_3_enviados += 1
                     report.total_enfileirados += 1
 
-            # 4. D+7: Inadimplência Crítica & Bloqueio Físico na Catraca (Vencimento há 7 dias)
-            data_dp7 = hoje - timedelta(days=7)
+            # 4. D+7: Inadimplência Crítica & Bloqueio Físico na Catraca (Vencimento há DIAS_CARENCIA_BLOQUEIO dias)
+            data_dp7 = hoje - timedelta(days=DIAS_CARENCIA_BLOQUEIO)
             faturas_dp7 = await self.fatura_repo.get_faturas_para_regua(
                 data_vencimento=data_dp7,
                 campo_notificacao="notificado_d_plus_7_em"

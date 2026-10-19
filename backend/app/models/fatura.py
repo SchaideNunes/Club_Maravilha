@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from sqlalchemy import Date, DateTime, Enum, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, JSON, UUID
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.core.constants import DIAS_CARENCIA_BLOQUEIO
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:

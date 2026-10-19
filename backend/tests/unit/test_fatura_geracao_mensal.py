@@ -185,13 +185,14 @@ async def test_gera_fatura_com_valores_vencimento_e_status(db_session):
     socio = _socio(1, dia_vencimento=15)
     db_session.add(socio)
     await db_session.commit()
+    socio_id = socio.id
 
     resultado = await FaturaService(db_session).gerar_faturas_mes("2026-11")
 
     assert resultado.referencia_mes == "2026-11"
     assert (resultado.criadas, resultado.ja_existentes, resultado.total) == (1, 0, 1)
     [fatura] = await _faturas(db_session)
-    assert fatura.associado_id == socio.id
+    assert fatura.associado_id == socio_id
     assert fatura.referencia_mes == "2026-11"
     assert fatura.status == StatusFatura.PENDENTE
     assert fatura.data_vencimento == date(2026, 11, 15)
@@ -301,11 +302,12 @@ async def test_todos_os_status_recebem_fatura_mas_nao_quem_aderiu_depois(db_sess
     db_session.add_all([ativo, inadimplente, bloqueado, aderiu_no_mes, aderiu_depois])
     await db_session.commit()
 
+    esperados = {ativo.id, inadimplente.id, bloqueado.id, aderiu_no_mes.id}
     resultado = await FaturaService(db_session).gerar_faturas_mes("2026-11")
 
     assert (resultado.criadas, resultado.ja_existentes, resultado.total) == (4, 0, 4)
     faturados = {f.associado_id for f in await _faturas(db_session)}
-    assert faturados == {ativo.id, inadimplente.id, bloqueado.id, aderiu_no_mes.id}
+    assert faturados == esperados
 
 
 async def test_gerar_duas_vezes_nao_duplica(db_session):
@@ -342,9 +344,10 @@ async def test_fatura_existente_cancelada_nao_e_recriada_e_novo_socio_e_faturado
     resultado = await FaturaService(db_session).gerar_faturas_mes("2026-11")
 
     assert (resultado.criadas, resultado.ja_existentes, resultado.total) == (1, 1, 2)
+    antigo_id = antigo.id
     faturas = await _faturas(db_session)
     assert len(faturas) == 2
-    assert {f.status for f in faturas if f.associado_id == antigo.id} == {StatusFatura.CANCELADO}
+    assert {f.status for f in faturas if f.associado_id == antigo_id} == {StatusFatura.CANCELADO}
 
 
 async def test_meses_diferentes_geram_faturas_independentes(db_session):

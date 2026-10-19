@@ -198,3 +198,113 @@ async def test_emissao_concorrente_com_uma_vaga_restante_gera_exatamente_um_grat
     finally:
         await engine.dispose()
 
+
+MIGRACAO_FATURAS = (
+    Path(__file__).resolve().parents[2]
+    / "alembic"
+    / "versions"
+    / "d485e921b712_faturas_convites_e_constraint_unica.py"
+)
+
+
+def _carregar_migracao_faturas():
+    spec = importlib.util.spec_from_file_location("migracao_faturas_pg", MIGRACAO_FATURAS)
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    return modulo
+
+
+async def test_geracao_faturas_concorrente_postgres(schema_temporario):
+    """
+    Testa geração simultânea de faturas no PostgreSQL real via asyncio.gather em 2 sessões.
+    Graças ao INSERT ... ON CONFLICT ON CONSTRAINT uq_faturas_associado_referencia_mes DO NOTHING RETURNING id,
+    nenhuma das transações deve falhar com IntegrityError e exatamente 1 fatura deve ser criada no banco.
+    """
+    from datetime import date
+    from decimal import Decimal
+    from app.models.base import Base
+    from app.models.associado import Associado, StatusAssociado
+    from app.models.fatura import Fatura
+    from app.services.fatura_service import FaturaService
+
+    engine = create_async_engine(
+        _url("asyncpg"),
+        connect_args={"server_settings": {"search_path": schema_temporario}},
+    )
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+        sessao_factory = async_sessionmaker(engine, expire_on_commit=False)
+        socio_id = uuid.uuid4()
+
+        async with sessao_factory() as sessao:
+            cfg = await ConfiguracaoRepository(sessao).get_or_create()
+            cfg.valor_mensalidade = Decimal("150.00")
+
+            socio = Associado(
+                id=socio_id,
+                nome="Sócio Concorrente Fatura PG",
+                cpf="777.888.999-00",
+                whatsapp="5575999992222",
+                email="concorrente_fatura@clube.com",
+                status=StatusAssociado.ATIVO,
+                dia_vencimento=10,
+                data_adesao=date(2025, 1, 1),
+            )
+            sessao.add(socio)
+            await sessao.commit()
+
+        async def gerar():
+            async with sessao_factory() as s:
+                service = FaturaService(s)
+                return await service.gerar_faturas_mes("2026-11")
+
+        r1, r2 = await asyncio.gather(gerar(), gerar())
+
+        # Exatamente 1 fatura criada e 1 já existente entre as duas execuções
+        assert r1.criadas + r2.criadas == 1
+        assert r1.ja_existentes + r2.ja_existentes == 1
+
+        async with sessao_factory() as s:
+            total_faturas = (
+                await s.execute(
+                    select(Fatura).where(Fatura.associado_id == socio_id, Fatura.referencia_mes == "2026-11")
+                )
+            ).scalars().all()
+            assert len(total_faturas) == 1
+    finally:
+        await engine.dispose()
+
+
+def test_migracao_faturas_falha_com_duplicatas_postgres(schema_temporario):
+    """
+    Testa validação de duplicatas no PostgreSQL real antes de aplicar a UniqueConstraint.
+    """
+    migracao = _carregar_migracao_faturas()
+    engine = create_engine(_url("psycopg2"))
+
+    with engine.begin() as conn:
+        conn.execute(text(f"SET LOCAL search_path TO {schema_temporario}"))
+        conn.execute(text(
+            "CREATE TABLE faturas ("
+            "id UUID PRIMARY KEY, "
+            "associado_id UUID NOT NULL, "
+            "referencia_mes VARCHAR(7) NOT NULL"
+            ")"
+        ))
+        u_assoc = str(uuid.uuid4())
+        conn.execute(
+            text("INSERT INTO faturas VALUES (:id1, :assoc, '2026-11'), (:id2, :assoc, '2026-11')"),
+            {"id1": str(uuid.uuid4()), "id2": str(uuid.uuid4()), "assoc": u_assoc}
+        )
+
+        with Operations.context(MigrationContext.configure(conn)):
+            with pytest.raises(RuntimeError) as exc_info:
+                migracao.upgrade()
+
+            assert u_assoc in str(exc_info.value)
+            assert "2026-11" in str(exc_info.value)
+
+    engine.dispose()
+

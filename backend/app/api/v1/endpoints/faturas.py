@@ -30,7 +30,11 @@ router = APIRouter()
 
 @router.get("/", response_model=PaginatedFaturasResponse)
 async def list_faturas(
-    referencia_mes: Optional[str] = Query(None, description="Filtrar por mês AAAA-MM"),
+    referencia_mes: Optional[str] = Query(
+        None,
+        description="Filtrar por mês AAAA-MM",
+        pattern=r"^\d{4}-(0[1-9]|1[0-2])$",
+    ),
     status: Optional[StatusFatura] = Query(None, description="Filtrar por status"),
     q: Optional[str] = Query(None, description="Busca por nome ou CPF do associado"),
     associado_id: Optional[uuid.UUID] = Query(None, description="Filtrar por associado"),

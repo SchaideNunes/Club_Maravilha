@@ -4,6 +4,7 @@ Testes unitários para o serviço de Catraca Facial e Whitelist Offline.
 import pytest
 from datetime import date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.constants import DIAS_CARENCIA_BLOQUEIO
 from app.models.associado import Associado, StatusAssociado
 from app.models.convidado import Convidado, StatusConvidado
 from app.models.fatura import Fatura, StatusFatura
@@ -50,7 +51,7 @@ async def test_catraca_whitelist_filtering(db_session: AsyncSession):
         referencia_mes="2026-08",
         valor_base=150.0,
         valor_total=150.0,
-        data_vencimento=hoje - timedelta(days=5),
+        data_vencimento=hoje - timedelta(days=DIAS_CARENCIA_BLOQUEIO),
         status=StatusFatura.ATRASADA
     )
     db_session.add(fatura_vencida)

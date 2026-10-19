@@ -4,6 +4,7 @@ Serviço de Negócio para Faturas, Cobrança Pix, Geração Mensal e Baixa Manua
 import calendar
 from datetime import date, datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
+import logging
 import math
 import re
 from typing import Any, Dict, List, Optional
@@ -20,10 +21,13 @@ from app.models.associado import Associado, StatusAssociado
 from app.models.convidado import Convidado, StatusConvidado
 from app.models.fatura import Fatura, FormaPagamento, StatusFatura, calcular_valor_total_fatura
 from app.models.log_mensagem import EtapaRegua
+from app.repositories._dialect import insert_do_dialeto
 from app.repositories.associado_repository import AssociadoRepository
 from app.repositories.configuracao_repository import ConfiguracaoRepository
 from app.repositories.convidado_repository import ConvidadoRepository
 from app.repositories.fatura_repository import FaturaRepository
+
+logger = logging.getLogger(__name__)
 from app.schemas.fatura import (
     FaturaBaixaManual,
     FaturaCreate,
@@ -142,19 +146,24 @@ class FaturaService:
 
         if q and q.strip():
             termo = q.strip()
+            escaped_q = termo.replace("/", "//").replace("%", "/%").replace("_", "/_")
+            term_pattern = f"%{escaped_q}%"
             condicoes = [
-                Associado.nome.ilike(f"%{termo}%"),
-                Associado.cpf.ilike(f"%{termo}%"),
+                Associado.nome.ilike(term_pattern, escape="/"),
+                Associado.cpf.ilike(term_pattern, escape="/"),
             ]
             digitos = re.sub(r"\D", "", termo)
             if digitos:
+                escaped_digitos = digitos.replace("/", "//").replace("%", "/%").replace("_", "/_")
                 condicoes.append(
-                    func.replace(func.replace(Associado.cpf, ".", ""), "-", "").ilike(f"%{digitos}%")
+                    func.replace(func.replace(Associado.cpf, ".", ""), "-", "").ilike(
+                        f"%{escaped_digitos}%", escape="/"
+                    )
                 )
             query = query.where(or_(*condicoes))
             count_query = count_query.where(or_(*condicoes))
 
-        query = query.order_by(Associado.nome.asc(), Fatura.data_vencimento.desc())
+        query = query.order_by(Associado.nome.asc(), Fatura.data_vencimento.desc(), Fatura.id.asc())
 
         total = (await self.session.execute(count_query)).scalar_one()
 
@@ -278,6 +287,11 @@ class FaturaService:
         await self.session.refresh(fatura)
         return fatura
 
+    async def _associados_ja_faturados(self, referencia_mes: str) -> set[uuid.UUID]:
+        """Busca faturas já existentes neste mês de referência (qualquer status conta)."""
+        existentes_query = select(Fatura.associado_id).where(Fatura.referencia_mes == referencia_mes)
+        return set((await self.session.execute(existentes_query)).scalars().all())
+
     async def gerar_faturas_mes(
         self,
         referencia_mes: Optional[str] = None,
@@ -318,10 +332,10 @@ class FaturaService:
             )
 
         # 2. Busca faturas já existentes neste mês de referência (qualquer status conta)
-        existentes_query = select(Fatura.associado_id).where(Fatura.referencia_mes == referencia_mes)
-        existentes_ids = set((await self.session.execute(existentes_query)).scalars().all())
+        existentes_ids = await self._associados_ja_faturados(referencia_mes)
 
         # 3. Agregação em lote de convites usados no mês anterior (sem N+1)
+        # Exclui cancelados e convites já agregados a qualquer fatura (Item 6)
         ref_anterior = mes_anterior(referencia_mes)
         ano_ant, mes_ant = map(int, ref_anterior.split("-"))
         inicio_ant = date(ano_ant, mes_ant, 1)
@@ -333,17 +347,17 @@ class FaturaService:
                 Convidado.status != StatusConvidado.CANCELADO,
                 Convidado.data_visita >= inicio_ant,
                 Convidado.data_visita <= fim_ant,
+                Convidado.fatura_agregada_id.is_(None),
             )
             .group_by(Convidado.associado_titular_id)
         )
         convidados_count = dict((await self.session.execute(convidados_query)).all())
 
-        criadas = 0
-        ja_existentes = 0
+        faturas_para_inserir = []
+        mapa_socio_fatura_id: dict[uuid.UUID, uuid.UUID] = {}
 
         for socio in socios_elegiveis:
             if socio.id in existentes_ids:
-                ja_existentes += 1
                 continue
 
             usados = convidados_count.get(socio.id, 0)
@@ -352,23 +366,61 @@ class FaturaService:
             valor_base = valor_mensalidade
             valor_desconto = Decimal("0.00")
             valor_total = calcular_valor_total_fatura(valor_base, valor_excedentes, valor_desconto)
-            vencimento = calcular_data_vencimento(referencia_mes, socio.dia_vencimento)
+            # Item 7: adesão no meio do mês não nasce vencida
+            vencimento = max(calcular_data_vencimento(referencia_mes, socio.dia_vencimento), socio.data_adesao)
 
-            nova_fatura = Fatura(
-                associado_id=socio.id,
-                referencia_mes=referencia_mes,
-                valor_base=valor_base,
-                valor_convidados_excedentes=valor_excedentes,
-                valor_desconto=valor_desconto,
-                valor_total=valor_total,
-                convites_usados=usados,
-                convites_extras=extras,
-                data_vencimento=vencimento,
-                forma_pagamento=FormaPagamento.PIX,
-                status=StatusFatura.PENDENTE,
-            )
-            self.session.add(nova_fatura)
-            criadas += 1
+            f_id = uuid.uuid4()
+            mapa_socio_fatura_id[socio.id] = f_id
+
+            faturas_para_inserir.append({
+                "id": f_id,
+                "associado_id": socio.id,
+                "referencia_mes": referencia_mes,
+                "valor_base": valor_base,
+                "valor_convidados_excedentes": valor_excedentes,
+                "valor_desconto": valor_desconto,
+                "valor_total": valor_total,
+                "convites_usados": usados,
+                "convites_extras": extras,
+                "data_vencimento": vencimento,
+                "forma_pagamento": FormaPagamento.PIX,
+                "status": StatusFatura.PENDENTE,
+            })
+
+        retornados_ids: set[uuid.UUID] = set()
+        if faturas_para_inserir:
+            dialeto = self.session.get_bind().dialect.name
+            insert_fn = insert_do_dialeto(dialeto)
+            stmt = insert_fn(Fatura).values(faturas_para_inserir)
+            if dialeto == "postgresql":
+                stmt = stmt.on_conflict_do_nothing(constraint="uq_faturas_associado_referencia_mes")
+            else:
+                stmt = stmt.on_conflict_do_nothing(index_elements=["associado_id", "referencia_mes"])
+            stmt = stmt.returning(Fatura.id, Fatura.associado_id)
+            res = await self.session.execute(stmt)
+            retornados = res.all()
+            retornados_ids = {row[0] for row in retornados}
+            socios_criados = {row[1] for row in retornados}
+
+            # Item 6: na mesma transação, vincula os convites apurados à nova fatura
+            for socio_id in socios_criados:
+                fat_id = mapa_socio_fatura_id.get(socio_id)
+                if fat_id:
+                    stmt_conv = (
+                        update(Convidado)
+                        .where(
+                            Convidado.associado_titular_id == socio_id,
+                            Convidado.status != StatusConvidado.CANCELADO,
+                            Convidado.data_visita >= inicio_ant,
+                            Convidado.data_visita <= fim_ant,
+                            Convidado.fatura_agregada_id.is_(None),
+                        )
+                        .values(fatura_agregada_id=fat_id)
+                    )
+                    await self.session.execute(stmt_conv)
+
+        criadas = len(retornados_ids)
+        ja_existentes = len(socios_elegiveis) - criadas
 
         await self.session.commit()
 
@@ -455,7 +507,8 @@ class FaturaService:
         await self.session.refresh(fatura)
 
         # Reativação do associado se não houver outras faturas vencidas em aberto
-        associado = await self.associado_repo.get_by_id(fatura.associado_id)
+        associado_reativado = False
+        associado = await self.associado_repo.get_by_id(fatura.associado_id, for_update=True)
         if associado:
             hoje = hoje_clube()
             outras_vencidas_query = select(Fatura.id).where(
@@ -472,25 +525,43 @@ class FaturaService:
             tem_outras_vencidas = (await self.session.execute(outras_vencidas_query)).scalars().first() is not None
             if not tem_outras_vencidas and associado.status in (StatusAssociado.INADIMPLENTE, StatusAssociado.BLOQUEADO):
                 associado.status = StatusAssociado.ATIVO
+                associado_reativado = True
 
-        await self.session.commit()
-        await self.session.refresh(fatura)
-
-        # Enfileira recibo digital de prioridade alta após commit
+        # Item 3: Carregar cfg e renderizar o texto do recibo ANTES do commit
+        texto_recibo: Optional[str] = None
         if associado and associado.whatsapp:
             cfg = await self.configuracao_repo.get_or_create()
             variaveis = variaveis_da_fatura(fatura, associado, cfg)
             texto_recibo = renderizar_template(cfg.template_recibo, variaveis)
-            await self.queue_service.enqueue(
-                phone=associado.whatsapp,
-                message=texto_recibo,
-                priority=MessagePriority.HIGH,
-                log_context=LogContext(
-                    etapa=EtapaRegua.RECIBO,
-                    associado_id=associado.id,
-                    fatura_id=fatura.id,
-                ),
-            )
+
+        await self.session.commit()
+        await self.session.refresh(fatura)
+
+        # Item 3: Após o commit, enfileirar recibo em try/except resiliente sem abortar a baixa já persistida
+        if associado and associado.whatsapp and texto_recibo:
+            try:
+                await self.queue_service.enqueue(
+                    phone=associado.whatsapp,
+                    message=texto_recibo,
+                    priority=MessagePriority.HIGH,
+                    log_context=LogContext(
+                        etapa=EtapaRegua.RECIBO,
+                        associado_id=associado.id,
+                        fatura_id=fatura.id,
+                    ),
+                )
+            except Exception as exc:
+                logger.exception(
+                    f"[FaturaService] Falha ao enfileirar recibo pós-baixa manual da fatura {fatura.id}: {exc}"
+                )
+
+        # Opcional: Notificar catraca para sincronizar offline após reativação
+        if associado_reativado:
+            try:
+                catraca_service = CatracaService(self.session)
+                await catraca_service.notify_turnstile_sync(reason=f"baixa_manual_{fatura.id}")
+            except Exception as exc:
+                logger.warning(f"[FaturaService] Falha ao notificar catraca na baixa manual: {exc}")
 
         return fatura
 

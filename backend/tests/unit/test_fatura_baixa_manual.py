@@ -115,13 +115,14 @@ async def test_baixa_manual_marca_paga_com_forma_e_data(db_session, fila, congel
     _, fatura = await _cenario(db_session)
     pago_em = datetime(2026, 11, 11, 15, 30, tzinfo=timezone.utc)
 
+    fatura_id = fatura.id
     resultado = await FaturaService(db_session, queue_service=fila).baixa_manual(
-        fatura.id, FaturaBaixaManual(forma_pagamento=FormaPagamento.DINHEIRO, data_pagamento=pago_em)
+        fatura_id, FaturaBaixaManual(forma_pagamento=FormaPagamento.DINHEIRO, data_pagamento=pago_em)
     )
 
-    assert resultado.id == fatura.id
+    assert resultado.id == fatura_id
     db_session.expire_all()
-    lida = (await db_session.execute(select(Fatura).where(Fatura.id == fatura.id))).scalar_one()
+    lida = (await db_session.execute(select(Fatura).where(Fatura.id == fatura_id))).scalar_one()
     assert lida.status == StatusFatura.PAGO
     assert lida.forma_pagamento == FormaPagamento.DINHEIRO
     assert lida.data_pagamento.replace(tzinfo=timezone.utc) == pago_em
@@ -132,13 +133,13 @@ async def test_baixa_manual_marca_paga_com_forma_e_data(db_session, fila, congel
 async def test_baixa_manual_sem_data_usa_instante_atual(db_session, fila):
     _, fatura = await _cenario(db_session)
     antes = datetime.now(timezone.utc) - timedelta(seconds=5)
-
+    fatura_id = fatura.id
     await FaturaService(db_session, queue_service=fila).baixa_manual(
-        fatura.id, FaturaBaixaManual(forma_pagamento=FormaPagamento.PIX)
+        fatura_id, FaturaBaixaManual(forma_pagamento=FormaPagamento.PIX)
     )
 
     db_session.expire_all()
-    lida = (await db_session.execute(select(Fatura).where(Fatura.id == fatura.id))).scalar_one()
+    lida = (await db_session.execute(select(Fatura).where(Fatura.id == fatura_id))).scalar_one()
     pago_em = lida.data_pagamento
     if pago_em.tzinfo is None:
         pago_em = pago_em.replace(tzinfo=timezone.utc)

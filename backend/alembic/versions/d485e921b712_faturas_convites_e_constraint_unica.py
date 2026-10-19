@@ -44,6 +44,25 @@ def upgrade() -> None:
             comment='Quantidade de convites excedentes cobrados nesta fatura',
         ),
     )
+    bind = op.get_bind()
+    duplicatas = bind.execute(
+        sa.text(
+            "SELECT associado_id, referencia_mes, count(*) as total "
+            "FROM faturas "
+            "GROUP BY associado_id, referencia_mes "
+            "HAVING count(*) > 1"
+        )
+    ).fetchall()
+    if duplicatas:
+        detalhes = ", ".join(
+            f"(associado_id={row[0]}, referencia_mes={row[1]}: {row[2]} registros)"
+            for row in duplicatas
+        )
+        raise RuntimeError(
+            f"Não é possível aplicar a restrição única '{UQ_FATURAS}': "
+            f"foram encontradas faturas duplicadas na base de dados: {detalhes}"
+        )
+
     op.create_unique_constraint(
         UQ_FATURAS,
         'faturas',

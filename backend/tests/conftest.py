@@ -28,26 +28,6 @@ def _ativar_foreign_keys_no_sqlite(dbapi_connection, _connection_record) -> None
     cursor.close()
 
 
-from sqlalchemy.orm import Session
-
-_orig_expire_all = Session.expire_all
-
-
-def _safe_expire_all(self):
-    """
-    Expira todos os atributos exceto chaves primárias.
-    Evita MissingGreenlet em sessões assíncronas ao acessar .id após session.expire_all().
-    """
-    for state in list(self.identity_map.all_states()):
-        if state.mapper:
-            pk_keys = {col.key for col in state.mapper.primary_key}
-            attrs = [k for k in state.mapper.column_attrs.keys() if k not in pk_keys]
-            self.expire(state.object, attrs)
-        else:
-            self.expire(state.object)
-
-
-Session.expire_all = _safe_expire_all
 
 
 TestingSessionLocal = async_sessionmaker(

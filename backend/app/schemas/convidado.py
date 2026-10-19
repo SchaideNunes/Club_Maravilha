@@ -4,7 +4,7 @@ Schemas Pydantic v2 para validação e serialização de Convidados.
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 from app.models.convidado import StatusConvidado
 
@@ -17,6 +17,12 @@ class ConvidadoBase(BaseModel):
 
 class ConvidadoCreate(ConvidadoBase):
     associado_titular_id: uuid.UUID
+
+
+class ConvidadoAssociadoCreate(BaseModel):
+    nome: str = Field(..., min_length=3, max_length=150)
+    cpf: Optional[str] = None
+    data_visita: Optional[date] = None
 
 
 class ConvidadoResponse(ConvidadoBase):
@@ -32,6 +38,17 @@ class ConvidadoResponse(ConvidadoBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AdicionarConvidadoResponse(BaseModel):
+    convidado: ConvidadoResponse
+    is_gratuito: bool
+    tipo: Literal["GRATUITO", "EXCEDENTE"]
+    convidados_usados_mes: int
+    franquia: int
+    excedentes_mes: int
+    valor_taxa_extra: Decimal
+    aviso: Optional[str] = None
 
 
 class QuotaConvidadosResponse(BaseModel):

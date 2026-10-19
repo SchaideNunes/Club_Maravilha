@@ -1,5 +1,5 @@
 """
-Endpoints da API v1 para Gestão de Associados e Importação de Planilhas.
+Endpoints da API v1 para Gestão de Associados, Emissão Rápida de Convites e Importação de Planilhas.
 """
 import uuid
 from typing import Optional
@@ -13,27 +13,32 @@ from app.schemas.associado import (
     AssociadoUpdate,
     ImportAssociadosResult,
     PaginatedAssociadosResponse,
+    SituacaoFinanceira,
 )
+from app.schemas.convidado import AdicionarConvidadoResponse, ConvidadoAssociadoCreate
 from app.services.associado_service import AssociadoService
+from app.services.convidado_service import ConvidadoService
 
 router = APIRouter()
 
 
 @router.get("/", response_model=PaginatedAssociadosResponse)
 async def list_associados(
-    q: Optional[str] = Query(None, description="Busca textual por nome, CPF ou email"),
+    q: Optional[str] = Query(None, description="Busca textual por nome ou CPF (com/sem máscara)"),
     page: int = Query(1, ge=1, description="Número da página"),
     page_size: int = Query(20, ge=1, le=100, description="Itens por página"),
-    status: Optional[StatusAssociado] = Query(None, description="Filtrar por status"),
+    status: Optional[StatusAssociado] = Query(None, description="Filtrar por status cadastral"),
+    situacao: Optional[SituacaoFinanceira] = Query(None, description="Filtrar por situação financeira"),
     db: AsyncSession = Depends(get_db)
 ) -> PaginatedAssociadosResponse:
-    """Lista associados com busca textual e paginação completa."""
+    """Lista associados com busca textual, paginação e filtro por situação financeira."""
     service = AssociadoService(db)
     return await service.list_paginated(
         page=page,
         page_size=page_size,
         q=q,
-        status_filter=status
+        status_filter=status,
+        situacao=situacao,
     )
 
 
@@ -50,11 +55,12 @@ async def create_associado(
 @router.post("/importar", response_model=ImportAssociadosResult, status_code=status.HTTP_200_OK)
 async def importar_planilha_associados(
     file: UploadFile = File(..., description="Arquivo de planilha .xlsx ou .csv"),
+    atualizar_existentes: bool = Query(False, description="Atualiza dados de sócios existentes pelo CPF"),
     db: AsyncSession = Depends(get_db)
 ) -> ImportAssociadosResult:
     """
     Importa sócios em lote a partir de arquivo Excel (.xlsx) ou CSV.
-    Valida CPFs matematicamente, normaliza telefones e ignora registros duplicados.
+    Valida CPFs matematicamente, normaliza telefones e ignora ou atualiza duplicados.
     """
     if not file.filename:
         raise HTTPException(
@@ -70,7 +76,11 @@ async def importar_planilha_associados(
         )
 
     service = AssociadoService(db)
-    return await service.import_associados_planilha(content, file.filename)
+    return await service.import_associados_planilha(
+        content,
+        file.filename,
+        atualizar_existentes=atualizar_existentes
+    )
 
 
 @router.get("/{associado_id}", response_model=AssociadoResponse)
@@ -78,9 +88,9 @@ async def get_associado(
     associado_id: uuid.UUID,
     db: AsyncSession = Depends(get_db)
 ) -> AssociadoResponse:
-    """Recupera os detalhes de um associado pelo ID."""
+    """Recupera os detalhes de um associado pelo ID, incluindo franquia e situação financeira."""
     service = AssociadoService(db)
-    return await service.get_by_id(associado_id)
+    return await service.get_associado_detalhe(associado_id)
 
 
 @router.patch("/{associado_id}", response_model=AssociadoResponse)
@@ -102,3 +112,21 @@ async def delete_associado(
     """Remove um associado do clube."""
     service = AssociadoService(db)
     await service.delete_associado(associado_id)
+
+
+@router.post(
+    "/{associado_id}/convidados",
+    response_model=AdicionarConvidadoResponse,
+    status_code=status.HTTP_201_CREATED
+)
+async def adicionar_convidado(
+    associado_id: uuid.UUID,
+    data: ConvidadoAssociadoCreate,
+    db: AsyncSession = Depends(get_db)
+) -> AdicionarConvidadoResponse:
+    """
+    Emissão rápida de convite para visitante vinculado ao associado titular.
+    Controla franquia gratuita e taxa excedente configuradas no clube.
+    """
+    service = ConvidadoService(db)
+    return await service.adicionar_convidado_associado(associado_id, data)

@@ -1,6 +1,12 @@
 """
 Configuração do ambiente de testes assíncronos com pytest e SQLite em memória.
 """
+import os
+
+# O padrão de produção do WHATSAPP_PROVIDER é BAILEYS (motor real). A suíte de testes nunca fala com
+# o engine: força o provedor MOCK antes de qualquer import de `app` instanciar o `settings`.
+os.environ["WHATSAPP_PROVIDER"] = "MOCK"
+
 import pytest
 from typing import AsyncGenerator
 from httpx import ASGITransport, AsyncClient

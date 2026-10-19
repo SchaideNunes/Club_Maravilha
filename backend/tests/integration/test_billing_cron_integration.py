@@ -8,12 +8,28 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.associado import Associado, StatusAssociado
 from app.models.fatura import Fatura, StatusFatura
-from app.services.whatsapp_service import MockWhatsAppProvider
-from app.services.whatsapp_queue_service import get_global_whatsapp_queue
+from app.models.log_mensagem import EtapaRegua
+from app.services import whatsapp_queue_service
+
+
+class _FilaFalsa:
+    def __init__(self) -> None:
+        self.itens = []
+
+    async def enqueue(self, phone, message, priority=None, log_context=None) -> None:
+        self.itens.append({"phone": phone, "message": message, "log_context": log_context})
 
 
 @pytest.mark.asyncio
-async def test_endpoint_executar_regua_cobranca(async_client: AsyncClient, db_session: AsyncSession):
+async def test_endpoint_executar_regua_cobranca(async_client: AsyncClient, db_session: AsyncSession, monkeypatch):
+    """
+    Feature 4: a régua usa templates da Configuração e a idempotência passou a ser o LogMensagem
+    (o campo legado `notificado_d_zero_em` deixou de ser o critério); o endpoint enfileira na fila
+    global com LogContext da etapa.
+    """
+    fila = _FilaFalsa()
+    monkeypatch.setattr(whatsapp_queue_service, "_global_queue", fila)
+
     # Cria associado e fatura para D-0
     socio = Associado(
         nome="Associado Régua Endpoint",
@@ -46,11 +62,15 @@ async def test_endpoint_executar_regua_cobranca(async_client: AsyncClient, db_se
     assert res.status_code == 200
     data = res.json()
     assert data["d_zero_enviados"] == 1
-    assert data["total_enfileirados"] >= 1
+    assert data["total_enfileirados"] == 1
+    assert data["automacao_ativa"] is True
 
-    # Verifica se a fatura foi marcada
-    await db_session.refresh(fatura)
-    assert fatura.notificado_d_zero_em is not None
+    assert len(fila.itens) == 1
+    contexto = fila.itens[0]["log_context"]
+    assert contexto.etapa == EtapaRegua.D0
+    assert contexto.fatura_id == fatura.id
+    assert contexto.associado_id == socio.id
+    assert "Associado Régua Endpoint" in fila.itens[0]["message"]
 
 
 @pytest.mark.asyncio

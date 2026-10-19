@@ -54,6 +54,8 @@ postgres_data/
 
 # WhatsApp engine (Baileys): credenciais da sessão conectada nunca devem ser versionadas
 whatsapp-engine/auth/
+whatsapp-engine/node_modules/
+whatsapp-engine/dist/
 
 # IDE & OS
 .idea/

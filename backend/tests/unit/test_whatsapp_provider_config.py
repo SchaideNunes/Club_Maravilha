@@ -1,6 +1,10 @@
 """
-Testes da configuração do provedor de WhatsApp: padrão MOCK (não envia nada), factory estrita,
-validação/aviso no startup e delays anti-ban padrão do briefing.
+Testes da configuração do provedor de WhatsApp: factory estrita, validação/aviso no startup e
+delays anti-ban padrão do briefing.
+
+Feature 4 (contrato atualizado): o padrão de produção de WHATSAPP_PROVIDER passa a ser BAILEYS (motor
+próprio em ./whatsapp-engine); o provedor legado EVOLUTION_API foi removido e agora é rejeitado como
+desconhecido. A suíte de testes força MOCK (tests/conftest.py) para nunca falar com o engine.
 """
 import logging
 from unittest.mock import MagicMock
@@ -10,15 +14,20 @@ import pytest
 import app.main as main
 from app.core.config import Settings, settings
 from app.services.whatsapp_service import (
-    EvolutionApiWhatsAppProvider,
+    BaileysWhatsAppProvider,
     MockWhatsAppProvider,
     check_whatsapp_provider_on_startup,
     get_whatsapp_provider,
 )
 
 
-def test_provedor_padrao_e_mock_e_nao_evolution():
-    assert Settings.model_fields["WHATSAPP_PROVIDER"].default == "MOCK"
+def test_provedor_padrao_de_producao_e_baileys():
+    assert Settings.model_fields["WHATSAPP_PROVIDER"].default == "BAILEYS"
+
+
+def test_suite_de_testes_roda_com_provedor_mock():
+    assert settings.WHATSAPP_PROVIDER == "MOCK"
+    assert isinstance(get_whatsapp_provider(), MockWhatsAppProvider)
 
 
 def test_delays_anti_ban_padrao_seguem_o_briefing():
@@ -33,15 +42,15 @@ def test_delays_anti_ban_padrao_seguem_o_briefing():
         ("mock", MockWhatsAppProvider),
         ("TEST", MockWhatsAppProvider),
         ("  Mock  ", MockWhatsAppProvider),
-        ("EVOLUTION_API", EvolutionApiWhatsAppProvider),
-        ("evolution_api", EvolutionApiWhatsAppProvider),
+        ("BAILEYS", BaileysWhatsAppProvider),
+        ("baileys", BaileysWhatsAppProvider),
     ],
 )
 def test_factory_reconhece_os_provedores_aceitos(valor, classe):
     assert isinstance(get_whatsapp_provider(valor), classe)
 
 
-@pytest.mark.parametrize("valor", ["BAILEYS", "EVOLUTION", "evolution-api", "qualquer", "123"])
+@pytest.mark.parametrize("valor", ["EVOLUTION_API", "EVOLUTION", "evolution-api", "qualquer", "123"])
 def test_factory_rejeita_provedor_desconhecido(valor):
     with pytest.raises(ValueError, match="desconhecido"):
         get_whatsapp_provider(valor)
@@ -51,11 +60,11 @@ def test_factory_sem_argumento_usa_o_provedor_configurado(monkeypatch):
     monkeypatch.setattr(settings, "WHATSAPP_PROVIDER", "MOCK")
     assert isinstance(get_whatsapp_provider(), MockWhatsAppProvider)
 
-    monkeypatch.setattr(settings, "WHATSAPP_PROVIDER", "EVOLUTION_API")
-    assert isinstance(get_whatsapp_provider(), EvolutionApiWhatsAppProvider)
+    monkeypatch.setattr(settings, "WHATSAPP_PROVIDER", "BAILEYS")
+    assert isinstance(get_whatsapp_provider(), BaileysWhatsAppProvider)
 
 
-@pytest.mark.parametrize("configurado", ["", "BAILEYS"])
+@pytest.mark.parametrize("configurado", ["", "EVOLUTION_API"])
 def test_factory_rejeita_configuracao_vazia_ou_desconhecida(monkeypatch, configurado):
     monkeypatch.setattr(settings, "WHATSAPP_PROVIDER", configurado)
 
@@ -84,7 +93,7 @@ def test_startup_avisa_quando_mock_em_producao(monkeypatch, caplog):
     [
         ("development", "MOCK"),
         ("test", "MOCK"),
-        ("production", "EVOLUTION_API"),
+        ("production", "BAILEYS"),
     ],
 )
 def test_startup_nao_avisa_fora_do_caso_mock_em_producao(monkeypatch, caplog, ambiente, provedor):
@@ -98,14 +107,14 @@ def test_startup_nao_avisa_fora_do_caso_mock_em_producao(monkeypatch, caplog, am
 
 
 def test_startup_falha_com_provedor_desconhecido(monkeypatch):
-    monkeypatch.setattr(settings, "WHATSAPP_PROVIDER", "BAILEYS")
+    monkeypatch.setattr(settings, "WHATSAPP_PROVIDER", "PROVEDOR_INVALIDO")
 
-    with pytest.raises(ValueError, match="BAILEYS"):
+    with pytest.raises(ValueError, match="PROVEDOR_INVALIDO"):
         check_whatsapp_provider_on_startup()
 
 
 async def test_lifespan_valida_o_provedor_antes_de_tocar_no_banco(monkeypatch):
-    monkeypatch.setattr(settings, "WHATSAPP_PROVIDER", "BAILEYS")
+    monkeypatch.setattr(settings, "WHATSAPP_PROVIDER", "PROVEDOR_INVALIDO")
     engine = MagicMock()  # qualquer uso indicaria que o banco foi acessado antes da validação
     monkeypatch.setattr(main, "async_engine", engine)
 

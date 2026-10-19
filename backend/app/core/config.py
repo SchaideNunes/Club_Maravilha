@@ -2,7 +2,7 @@
 Configurações centralizadas da aplicação utilizando Pydantic v2 Settings.
 Lê variáveis de ambiente ou arquivos .env de forma segura e tipada.
 """
-from typing import List, Union
+from typing import List, Optional, Union
 from pydantic import AnyHttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "insecure_dev_secret_key_change_in_production_12345"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+
+    # Administrador Inicial (Seed)
+    ADMIN_EMAIL: Optional[str] = None
+    ADMIN_PASSWORD: Optional[str] = None
+    ADMIN_NOME: str = "Administrador"
 
     # Gateway Pix & Webhooks
     PIX_GATEWAY_PROVIDER: str = "EFI_GERENCIANET"

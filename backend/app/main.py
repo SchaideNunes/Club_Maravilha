@@ -43,6 +43,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # Criação inicial de tabelas para dev/MVP
         await conn.run_sync(Base.metadata.create_all)
 
+    # Seed idempotente do admin inicial configurado no ambiente
+    try:
+        from scripts.seed_admin import seed_admin_from_env
+        async with AsyncSessionLocal() as session:
+            await seed_admin_from_env(session)
+    except Exception:
+        logger.exception("[Main] Falha ao executar seed_admin_from_env no startup")
+
     # Inicia scheduler e worker em segundo plano, exceto em modo de teste ou com SCHEDULER_ENABLED=false
     executar_agendador = scheduler_habilitado()
     if executar_agendador:
@@ -90,6 +98,15 @@ app.add_middleware(
 
 # Registro de Rotas
 app.include_router(api_router, prefix="/api/v1")
+
+# Expõe as rotas filhas em app.routes como APIRoute para introspecção e compatibilidade estrutural
+from fastapi.routing import APIRoute, _IncludedRouter
+for route in list(app.routes):
+    if isinstance(route, _IncludedRouter):
+        for rc in route.effective_route_contexts():
+            api_r = APIRoute(path=rc.path, endpoint=rc.endpoint, methods=rc.methods)
+            api_r.dependant = rc.dependant
+            app.routes.append(api_r)
 
 
 @app.get("/", include_in_schema=False)

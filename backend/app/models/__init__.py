@@ -8,6 +8,7 @@ from app.models.agendamento import AgendamentoQuadra, StatusAgendamento, TipoQua
 from app.models.convidado import Convidado, StatusConvidado, generate_qr_token
 from app.models.configuracao import Configuracao
 from app.models.log_mensagem import EtapaRegua, LogMensagem, StatusEnvio
+from app.models.usuario_admin import UsuarioAdmin
 
 __all__ = [
     "Base",
@@ -28,4 +29,5 @@ __all__ = [
     "LogMensagem",
     "EtapaRegua",
     "StatusEnvio",
+    "UsuarioAdmin",
 ]

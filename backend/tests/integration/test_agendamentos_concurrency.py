@@ -3,7 +3,7 @@ Testes de integração e concorrência para Agendamento de Quadras.
 """
 import pytest
 import asyncio
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.associado import Associado, StatusAssociado
@@ -23,7 +23,8 @@ async def test_full_court_booking_api_flow(async_client: AsyncClient, db_session
     db_session.add(socio)
     await db_session.commit()
 
-    inicio = datetime.now(timezone.utc) + timedelta(days=2, hours=14)
+    data_futura = (datetime.now(timezone.utc) + timedelta(days=2)).date()
+    inicio = datetime.combine(data_futura, time(14, 0), tzinfo=timezone.utc)
     fim = inicio + timedelta(hours=1)
 
     # 2. POST /api/v1/agendamentos/ -> Criação de reserva

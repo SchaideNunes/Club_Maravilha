@@ -7,7 +7,7 @@ Contratos definidos aqui (a implementar):
                                          (case-insensitive) | 422 CPF inválido | 422 WhatsApp inválido
 - PATCH  /api/v1/associados/{id}        200 | 404 | 409 e-mail de outro associado | 422 WhatsApp inválido
 - GET    /api/v1/associados/{id}        200 | 404
-- DELETE /api/v1/associados/{id}        204 | 404
+- DELETE /api/v1/associados/{id}        405 (substituído por POST /{id}/inativar)
 - GET    /api/v1/associados/?q=&situacao=EM_DIA|PENDENTE|ATRASADO&status=&page=&page_size=
     * q: nome (ilike) OU CPF com ou sem máscara (parcial)
     * situacao: derivada das faturas em aberto com referencia_mes <= mês corrente
@@ -162,11 +162,11 @@ async def test_detalhe_traz_situacao_e_franquia_configurada(async_client: AsyncC
     assert detalhe["situacao_financeira"] == "PENDENTE"
 
 
-async def test_delete_remove_e_retorna_404_depois(async_client: AsyncClient):
+async def test_inativar_substitui_a_exclusao(async_client: AsyncClient):
     a = await _criar(async_client)
-    assert (await async_client.delete(f"{URL}{a['id']}")).status_code == 204
-    assert (await async_client.get(f"{URL}{a['id']}")).status_code == 404
-    assert (await async_client.delete(f"{URL}{a['id']}")).status_code == 404
+    assert (await async_client.delete(f"{URL}{a['id']}")).status_code == 405
+    assert (await async_client.post(f"{URL}{a['id']}/inativar", json={})).status_code == 200
+    assert (await async_client.get(f"{URL}{a['id']}")).json()["status"] == "INATIVO"
 
 
 # ------------------------------------------------------------------------------

@@ -102,11 +102,13 @@ async def test_delete_associado(async_client: AsyncClient):
     })
     if create_res.status_code == 201:
         member_id = create_res.json()["id"]
-        del_res = await async_client.delete(f"/api/v1/associados/{member_id}")
-        assert del_res.status_code == 204
+        # Sócio não é mais apagado: a exclusão virou inativação, preservando o histórico
+        inativar_res = await async_client.post(f"/api/v1/associados/{member_id}/inativar", json={})
+        assert inativar_res.status_code == 200
 
         get_res = await async_client.get(f"/api/v1/associados/{member_id}")
-        assert get_res.status_code == 404
+        assert get_res.status_code == 200
+        assert get_res.json()["status"] == "INATIVO"
 
 
 @pytest.mark.asyncio
@@ -152,6 +154,6 @@ async def test_not_found_associado_operations(async_client: AsyncClient):
     get_res = await async_client.get(f"/api/v1/associados/{fake_id}")
     assert get_res.status_code == 404
 
-    del_res = await async_client.delete(f"/api/v1/associados/{fake_id}")
-    assert del_res.status_code == 404
+    inativar_res = await async_client.post(f"/api/v1/associados/{fake_id}/inativar", json={})
+    assert inativar_res.status_code == 404
 

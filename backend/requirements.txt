@@ -10,7 +10,8 @@ email-validator>=2.1.1
 tzdata>=2024.1
 
 # Banco de Dados & ORM (SQLAlchemy 2.0 Async + Alembic)
-sqlalchemy>=2.0.28
+sqlalchemy[asyncio]>=2.0.28
+greenlet>=3.0.3
 asyncpg>=0.29.0
 psycopg2-binary>=2.9.9
 alembic>=1.16.0

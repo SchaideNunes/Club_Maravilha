@@ -1,6 +1,8 @@
 """
 Serviço de Negócio para Gestão de Convidados, Cota Mensal e Validação de QR Code na Catraca.
 """
+from __future__ import annotations
+
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import List, Optional, Tuple
@@ -8,7 +10,7 @@ import uuid
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.clock import hoje_clube
-from app.models.associado import StatusAssociado
+from app.models.associado import Associado, StatusAssociado
 from app.models.convidado import Convidado, StatusConvidado
 from app.models.fatura import StatusFatura
 from app.repositories.associado_repository import AssociadoRepository

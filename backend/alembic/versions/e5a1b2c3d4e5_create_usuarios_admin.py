@@ -21,20 +21,23 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'usuarios_admin',
-        sa.Column('id', sa.UUID(), nullable=False),
-        sa.Column('nome', sa.String(length=255), nullable=False),
-        sa.Column('email', sa.String(length=255), nullable=False),
-        sa.Column('senha_hash', sa.String(length=255), nullable=False),
-        sa.Column('ativo', sa.Boolean(), server_default=sa.text('true'), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
-        sa.PrimaryKeyConstraint('id'),
-        sa.UniqueConstraint('email', name='uq_usuarios_admin_email'),
-    )
-    op.create_index(op.f('ix_usuarios_admin_email'), 'usuarios_admin', ['email'], unique=True)
-    op.create_index(op.f('ix_usuarios_admin_id'), 'usuarios_admin', ['id'], unique=False)
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    if 'usuarios_admin' not in inspector.get_table_names():
+        op.create_table(
+            'usuarios_admin',
+            sa.Column('id', sa.UUID(), nullable=False),
+            sa.Column('nome', sa.String(length=255), nullable=False),
+            sa.Column('email', sa.String(length=255), nullable=False),
+            sa.Column('senha_hash', sa.String(length=255), nullable=False),
+            sa.Column('ativo', sa.Boolean(), server_default=sa.text('true'), nullable=False),
+            sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+            sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+            sa.PrimaryKeyConstraint('id'),
+            sa.UniqueConstraint('email', name='uq_usuarios_admin_email'),
+        )
+        op.create_index(op.f('ix_usuarios_admin_email'), 'usuarios_admin', ['email'], unique=True)
+        op.create_index(op.f('ix_usuarios_admin_id'), 'usuarios_admin', ['id'], unique=False)
 
 
 def downgrade() -> None:

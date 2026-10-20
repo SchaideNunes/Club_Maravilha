@@ -18,9 +18,13 @@ import {
   formatCPF,
   formatDate,
   formatDateTime,
+  formatReferencia,
   formatWhatsApp,
   labelSituacao,
   labelWhatsAppStatus,
+  mascararCEP,
+  valorParaApi,
+  valorParaCampo,
 } from './format';
 
 const semNbsp = (texto: string) => texto.replace(/ /g, ' ');
@@ -77,5 +81,38 @@ describe('rótulos', () => {
     expect(labelWhatsAppStatus('DESCONECTADO')).toBe('Desconectado');
     expect(labelWhatsAppStatus('AGUARDANDO_QRCODE')).toBe('Aguardando QR Code');
     expect(labelWhatsAppStatus('OUTRO')).toBe('Desconectado');
+  });
+});
+
+describe('helpers do cadastro de sócios', () => {
+  it('formatReferencia converte AAAA-MM em MM/AAAA', () => {
+    expect(formatReferencia('2026-11')).toBe('11/2026');
+    expect(formatReferencia('inválido')).toBe('inválido');
+  });
+
+  it.each([
+    ['44001000', '44001-000'],
+    ['44001', '44001'],
+    ['44.001-0009', '44001-000'],
+    ['', ''],
+  ])('mascararCEP(%s) -> %s', (entrada, esperado) => {
+    expect(mascararCEP(entrada)).toBe(esperado);
+  });
+
+  it.each([
+    ['150', '150.00'],
+    ['150,5', '150.50'],
+    ['1.234,56', '1234.56'],
+    ['0', '0.00'],
+    ['12,345', null],
+    ['abc', null],
+    ['-10', null],
+  ])('valorParaApi(%s) -> %s', (entrada, esperado) => {
+    expect(valorParaApi(entrada)).toBe(esperado);
+  });
+
+  it('valorParaCampo mostra o decimal da API em pt-BR', () => {
+    expect(valorParaCampo('220.00')).toBe('220,00');
+    expect(valorParaCampo('x')).toBe('');
   });
 });

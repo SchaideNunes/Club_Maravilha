@@ -67,6 +67,14 @@ Local ports: frontend 5173, API 8000 (Swagger at `/docs`), engine 3001 (loopback
   - Business constants are in `core/constants.py`. The D+7 reminder does not change member status. A member becomes INADIMPLENTE and is blocked at the turnstile (catraca) only after `DIAS_CARENCIA_BLOQUEIO` (30) days overdue.
   - The scheduler and worker run only when `ENVIRONMENT != "test"` and `SCHEDULER_ENABLED` is on. They must run in exactly one process, which is why production uses `--workers 1`.
 - **WhatsApp providers** (`services/whatsapp_service.py`): `get_whatsapp_provider()` returns `MockWhatsAppProvider` or `BaileysWhatsAppProvider` based on `WHATSAPP_PROVIDER`. An unknown value makes startup fail.
+- **Members are never deleted.** `POST /associados/{id}/inativar` sets status `INATIVO`. That cancels only future items (pending invoices not yet due, guest invites, court bookings) and keeps all history.
+  - INATIVO members are excluded from invoice generation, the reminder sequence (régua), the turnstile whitelist, the dashboard count, and the default listing (`status=INATIVO` lists them).
+  - Any new query over "active members" must account for this.
+- **Plans and pricing:** `planos` sets the monthly fee per member (`Associado.plano`, loaded via `lazy="joined"`).
+  - A member without a plan pays `Configuracao.valor_mensalidade`.
+  - A plan valued at 0 means exempt: no invoice is generated unless there are extra guests to charge.
+- **Row locks:** because of that joined plan, row locks on `Associado` must use `with_for_update(of=Associado)`. Postgres rejects plain `FOR UPDATE` on the nullable side of an outer join, and SQLite tests won't catch it (see `tests/unit/test_trava_associado_postgres.py`).
+- **Member photos** are stored on disk under `settings.UPLOADS_DIR/associados/` (volume `uploads_data` in production). They are served by an admin-protected route, so the frontend downloads them as a blob.
 - **Configuration:** `configuracoes` is a singleton row (`id = 1`) read through `ConfiguracaoRepository.get_or_create()`. It holds the fee amounts, guest quota, Pix key, reminder schedule and on/off switch, and the message templates (rendered by `template_service`).
 
 ### Backend tests
@@ -82,6 +90,11 @@ Local ports: frontend 5173, API 8000 (Swagger at `/docs`), engine 3001 (loopback
   - `/admin/*` loads `src/admin/AdminApp`, the real admin panel. It uses react-router, react-query, axios `admin/api/client.ts` with a JWT in localStorage, and `ProtectedRoute`.
   - Every other path loads `src/App.tsx`, the public landing page and member-portal mockups. These use hash-based navigation and the legacy `components/` tree (including a mock `components/admin/AdminDashboardPage.tsx`, which is not the real admin).
 - The API base URL is `VITE_API_URL` plus `/api/v1`.
+- **Member screens:**
+  - The list is at `/admin/associados`.
+  - New members are created at `/admin/associados/novo`.
+  - Each member has a profile at `/admin/associados/:id`, with tabs for data, family, financial, guests and messages.
+  - Both the new-member page and the profile use `pages/associados/FormularioAssociado.tsx`, which fills the address from the CEP via ViaCEP. Tests mock ViaCEP with MSW.
 - Tests use Vitest with jsdom and MSW:
   - `src/test/setup.ts` sets `onUnhandledRequest: 'error'`, so every HTTP call in a test needs a handler (`src/test/handlers.ts`, or `server.use(...)` in the test).
   - The test API origin is `http://api.test`, and TZ is fixed to `America/Sao_Paulo`.

@@ -168,6 +168,7 @@ describe('AssociadosPage - tabela', () => {
 
   it('nome do sócio e "Ver ficha" levam à ficha completa', async () => {
     backendAssociados();
+    server.use(http.get(`${API}/associados/:id`, () => HttpResponse.json(MARIA)));
     const { user } = renderAdmin({ route: '/admin/associados' });
     const maria = await linhaDe('Maria Souza');
 

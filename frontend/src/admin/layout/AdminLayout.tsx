@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, CreditCard, MessageSquare, LogOut } from 'lucide-react';
+import { LayoutDashboard, Users, Layers, CreditCard, MessageSquare, LogOut } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../auth/AuthProvider';
 import { apiClient } from '../api/client';
@@ -9,6 +9,7 @@ import { labelWhatsAppStatus } from '../utils/format';
 const NAV_ITEMS = [
   { name: 'Dashboard', to: '/admin', end: true, icon: LayoutDashboard },
   { name: 'Associados', to: '/admin/associados', end: false, icon: Users },
+  { name: 'Planos', to: '/admin/planos', end: false, icon: Layers },
   { name: 'Mensalidades', to: '/admin/mensalidades', end: false, icon: CreditCard },
   { name: 'WhatsApp & Configurações', to: '/admin/whatsapp', end: false, icon: MessageSquare },
 ];

@@ -87,3 +87,28 @@ export function labelWhatsAppStatus(status: string): string {
       return 'Desconectado';
   }
 }
+
+/** "2026-11" -> "11/2026" (mês de referência das faturas). */
+export function formatReferencia(referencia: string): string {
+  const [ano, mes] = referencia.split('-');
+  return ano && mes ? `${mes}/${ano}` : referencia;
+}
+
+/** CEP com máscara 00000-000 enquanto o usuário digita (aceita no máximo 8 dígitos). */
+export function mascararCEP(valor: string): string {
+  const digitos = valor.replace(/\D/g, '').slice(0, 8);
+  return digitos.length > 5 ? `${digitos.slice(0, 5)}-${digitos.slice(5)}` : digitos;
+}
+
+/** Valor digitado em pt-BR ("1.234,5" ou "150") -> string decimal da API ("1234.50"); null se inválido. */
+export function valorParaApi(valor: string): string | null {
+  const normalizado = valor.trim().replace(/\./g, '').replace(',', '.');
+  if (!/^\d+(\.\d{1,2})?$/.test(normalizado)) return null;
+  return Number(normalizado).toFixed(2);
+}
+
+/** Valor decimal da API ("150.00") -> texto editável em pt-BR ("150,00"). */
+export function valorParaCampo(valor: string): string {
+  const num = parseFloat(valor);
+  return isNaN(num) ? '' : num.toFixed(2).replace('.', ',');
+}

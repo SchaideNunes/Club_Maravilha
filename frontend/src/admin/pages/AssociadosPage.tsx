@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search,
   UserPlus,
   Upload,
-  Edit2,
-  Trash2,
+  ChevronRight,
   X,
   AlertCircle,
   CheckCircle,
@@ -19,22 +19,10 @@ import {
   labelSituacao,
 } from '../utils/format';
 import { ConvidadoModal } from './associados/ConvidadoModal';
-import { NovoAssociadoModal } from './associados/NovoAssociadoModal';
-import { EditarAssociadoModal } from './associados/EditarAssociadoModal';
-import { ExcluirAssociadoModal } from './associados/ExcluirAssociadoModal';
 import { ImportarPlanilhaModal } from './associados/ImportarPlanilhaModal';
+import { Associado } from './associados/tipos';
 
-export type Associado = {
-  id: string;
-  nome: string;
-  cpf: string;
-  whatsapp: string;
-  email: string;
-  dia_vencimento: number;
-  convidados_usados_mes: number;
-  franquia_convidados: number;
-  situacao_financeira: string;
-};
+export type { Associado } from './associados/tipos';
 
 export type ListaAssociadosPaginada = {
   items: Associado[];
@@ -59,6 +47,8 @@ export function AssociadosPage(): React.ReactElement {
   const [buscaInput, setBuscaInput] = useState('');
   const buscaDebounced = useDebouncedValue(buscaInput, 350);
   const [situacaoFiltro, setSituacaoFiltro] = useState('');
+  // '' = ativos (o backend oculta os inativos por padrão) | 'INATIVO'
+  const [cadastroFiltro, setCadastroFiltro] = useState('');
   const [pagina, setPagina] = useState(1);
 
   const handleBuscaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,9 +58,6 @@ export function AssociadosPage(): React.ReactElement {
 
   // Modais
   const [modalConvidadoSocio, setModalConvidadoSocio] = useState<Associado | null>(null);
-  const [modalNovoAberto, setModalNovoAberto] = useState(false);
-  const [modalEditarSocio, setModalEditarSocio] = useState<Associado | null>(null);
-  const [modalExcluirSocio, setModalExcluirSocio] = useState<Associado | null>(null);
   const [modalImportarAberto, setModalImportarAberto] = useState(false);
 
   // Alerta geral fora dos modais (ex: aviso de convite)
@@ -82,11 +69,12 @@ export function AssociadosPage(): React.ReactElement {
 
   // Query dos associados
   const { data, isLoading, isError } = useQuery<ListaAssociadosPaginada>({
-    queryKey: ['associados', buscaDebounced, situacaoFiltro, pagina],
+    queryKey: ['associados', buscaDebounced, situacaoFiltro, cadastroFiltro, pagina],
     queryFn: async () => {
       const params: Record<string, string | number> = { page: pagina };
       if (buscaDebounced.trim()) params.q = buscaDebounced.trim();
       if (situacaoFiltro) params.situacao = situacaoFiltro;
+      if (cadastroFiltro) params.status = cadastroFiltro;
       const res = await apiClient.get<ListaAssociadosPaginada>('/associados/', { params });
       return res.data;
     },
@@ -111,7 +99,7 @@ export function AssociadosPage(): React.ReactElement {
             Associados
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Gestão de membros, convidados e importação de cadastros
+            Cadastro de sócios, convidados e importação de cadastros
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -123,14 +111,13 @@ export function AssociadosPage(): React.ReactElement {
             <Upload className="w-4 h-4 text-slate-500" />
             <span>Importar planilha</span>
           </button>
-          <button
-            onClick={() => setModalNovoAberto(true)}
-            type="button"
+          <Link
+            to="/admin/associados/novo"
             className="inline-flex items-center gap-2 px-4 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-slate-900 hover:bg-slate-800 shadow-sm transition duration-150 ease-out"
           >
             <UserPlus className="w-4 h-4" />
             <span>Novo associado</span>
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -207,6 +194,27 @@ export function AssociadosPage(): React.ReactElement {
             <option value="ATRASADO">Atrasado</option>
           </select>
         </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <label
+            htmlFor="filtro-cadastro"
+            className="text-sm font-medium text-slate-700 whitespace-nowrap"
+          >
+            Cadastro
+          </label>
+          <select
+            id="filtro-cadastro"
+            value={cadastroFiltro}
+            onChange={(e) => {
+              setCadastroFiltro(e.target.value);
+              setPagina(1);
+            }}
+            className="w-full sm:w-32 px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-900 transition duration-150 ease-out"
+          >
+            <option value="">Ativos</option>
+            <option value="INATIVO">Inativos</option>
+          </select>
+        </div>
       </div>
 
       {/* Conteúdo da Tabela / Estados */}
@@ -234,6 +242,7 @@ export function AssociadosPage(): React.ReactElement {
                   <th scope="col" className="px-6 py-3.5">Nome</th>
                   <th scope="col" className="px-6 py-3.5">CPF</th>
                   <th scope="col" className="px-6 py-3.5">WhatsApp</th>
+                  <th scope="col" className="px-6 py-3.5">Plano</th>
                   <th scope="col" className="px-6 py-3.5">Vencimento</th>
                   <th scope="col" className="px-6 py-3.5">Situação</th>
                   <th scope="col" className="px-6 py-3.5">Convites</th>
@@ -242,11 +251,14 @@ export function AssociadosPage(): React.ReactElement {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {associados.map((socio) => {
-                  const sitRotulo = labelSituacao(socio.situacao_financeira);
+                  const inativo = socio.status === 'INATIVO';
+                  const sitRotulo = inativo ? 'Inativo' : labelSituacao(socio.situacao_financeira);
                   return (
                     <tr key={socio.id} className="hover:bg-slate-50/75 transition duration-150 ease-out">
                       <td className="px-6 py-4 font-medium text-slate-900 whitespace-nowrap">
-                        {socio.nome}
+                        <Link to={`/admin/associados/${socio.id}`} className="hover:underline">
+                          {socio.nome}
+                        </Link>
                       </td>
                       <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
                         {formatCPF(socio.cpf)}
@@ -255,12 +267,17 @@ export function AssociadosPage(): React.ReactElement {
                         {formatWhatsApp(socio.whatsapp)}
                       </td>
                       <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
+                        {socio.plano?.nome ?? 'Padrão'}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600 whitespace-nowrap">
                         Dia {socio.dia_vencimento}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            sitRotulo === 'Em dia'
+                            inativo
+                              ? 'bg-slate-100 text-slate-600 border border-slate-300'
+                              : sitRotulo === 'Em dia'
                               ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : sitRotulo === 'Pendente'
                               ? 'bg-amber-50 text-amber-700 border border-amber-200'
@@ -274,35 +291,28 @@ export function AssociadosPage(): React.ReactElement {
                         {socio.convidados_usados_mes}/{socio.franquia_convidados} convites
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
-                        <button
-                          onClick={() => {
-                            setAlertaGlobal(null);
-                            setModalConvidadoSocio(socio);
-                          }}
-                          aria-label={`Adicionar convidado para ${socio.nome}`}
-                          type="button"
-                          className="inline-flex items-center px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition duration-150 ease-out"
+                        {!inativo && (
+                          <button
+                            onClick={() => {
+                              setAlertaGlobal(null);
+                              setModalConvidadoSocio(socio);
+                            }}
+                            aria-label={`Adicionar convidado para ${socio.nome}`}
+                            type="button"
+                            className="inline-flex items-center px-2.5 py-1.5 border border-slate-300 rounded-lg text-xs font-medium text-slate-700 bg-white hover:bg-slate-50 shadow-sm transition duration-150 ease-out"
+                          >
+                            + Adicionar Convidado
+                          </button>
+                        )}
+                        <Link
+                          to={`/admin/associados/${socio.id}`}
+                          aria-label={`Abrir ficha de ${socio.nome}`}
+                          title="Ver ficha"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition duration-150 ease-out"
                         >
-                          + Adicionar Convidado
-                        </button>
-                        <button
-                          onClick={() => setModalEditarSocio(socio)}
-                          aria-label={`Editar ${socio.nome}`}
-                          type="button"
-                          className="inline-flex items-center p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition duration-150 ease-out"
-                          title="Editar associado"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setModalExcluirSocio(socio)}
-                          aria-label={`Excluir ${socio.nome}`}
-                          type="button"
-                          className="inline-flex items-center p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition duration-150 ease-out"
-                          title="Excluir associado"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                          Ver ficha
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </Link>
                       </td>
                     </tr>
                   );
@@ -360,41 +370,6 @@ export function AssociadosPage(): React.ReactElement {
                 mensagem: 'Convite emitido com sucesso!',
               });
             }
-          }}
-        />
-      )}
-
-      {/* Modal: Novo Associado */}
-      {modalNovoAberto && (
-        <NovoAssociadoModal
-          onClose={() => setModalNovoAberto(false)}
-          onSuccess={() => {
-            setModalNovoAberto(false);
-            queryClient.invalidateQueries({ queryKey: ['associados'] });
-          }}
-        />
-      )}
-
-      {/* Modal: Editar Associado */}
-      {modalEditarSocio && (
-        <EditarAssociadoModal
-          socio={modalEditarSocio}
-          onClose={() => setModalEditarSocio(null)}
-          onSuccess={() => {
-            setModalEditarSocio(null);
-            queryClient.invalidateQueries({ queryKey: ['associados'] });
-          }}
-        />
-      )}
-
-      {/* Modal: Excluir Associado */}
-      {modalExcluirSocio && (
-        <ExcluirAssociadoModal
-          socio={modalExcluirSocio}
-          onClose={() => setModalExcluirSocio(null)}
-          onSuccess={() => {
-            setModalExcluirSocio(null);
-            queryClient.invalidateQueries({ queryKey: ['associados'] });
           }}
         />
       )}

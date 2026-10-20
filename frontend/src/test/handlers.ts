@@ -23,16 +23,83 @@ export type AssociadoFixture = {
   foto_url: string | null;
   observacoes: string | null;
   facial_id: string | null;
-  status: 'ATIVO' | 'INADIMPLENTE' | 'BLOQUEADO';
+  status: 'ATIVO' | 'INADIMPLENTE' | 'BLOQUEADO' | 'INATIVO';
   limite_reservas_ativas: number;
   data_adesao: string;
   dia_vencimento: number;
   convidados_usados_mes: number;
   franquia_convidados: number;
   situacao_financeira: 'EM_DIA' | 'PENDENTE' | 'ATRASADO';
+  data_nascimento: string | null;
+  rg: string | null;
+  sexo: 'MASCULINO' | 'FEMININO' | 'OUTRO' | null;
+  profissao: string | null;
+  cep: string | null;
+  logradouro: string | null;
+  numero: string | null;
+  complemento: string | null;
+  bairro: string | null;
+  cidade: string | null;
+  uf: string | null;
+  plano: PlanoResumoFixture | null;
+  data_inativacao: string | null;
+  motivo_inativacao: string | null;
   created_at: string;
   updated_at: string;
 };
+
+export type PlanoResumoFixture = { id: string; nome: string; valor_mensalidade: string };
+
+/** Item de GET /planos/ (PlanoResponse). */
+export type PlanoFixture = PlanoResumoFixture & {
+  descricao: string | null;
+  ativo: boolean;
+  total_associados: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export function criarPlano(overrides: Partial<PlanoFixture> = {}): PlanoFixture {
+  return {
+    id: 'p0000000-0000-4000-8000-000000000001',
+    nome: 'Familiar',
+    valor_mensalidade: '220.00',
+    descricao: null,
+    ativo: true,
+    total_associados: 0,
+    created_at: '2026-10-01T12:00:00Z',
+    updated_at: '2026-10-01T12:00:00Z',
+    ...overrides,
+  };
+}
+
+/** Item de GET /associados/{id}/familia/ (MembroFamiliaResponse). */
+export type MembroFamiliaFixture = {
+  id: string;
+  associado_id: string;
+  nome: string;
+  parentesco: 'CONJUGE' | 'FILHO' | 'ENTEADO' | 'PAI_MAE' | 'IRMAO' | 'OUTRO';
+  cpf: string | null;
+  data_nascimento: string | null;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export function criarMembroFamilia(overrides: Partial<MembroFamiliaFixture> = {}): MembroFamiliaFixture {
+  return {
+    id: 'm0000000-0000-4000-8000-000000000001',
+    associado_id: '22222222-2222-4222-8222-222222222222',
+    nome: 'Pedro Souza',
+    parentesco: 'FILHO',
+    cpf: null,
+    data_nascimento: '2014-05-20',
+    ativo: true,
+    created_at: '2026-10-01T12:00:00Z',
+    updated_at: '2026-10-01T12:00:00Z',
+    ...overrides,
+  };
+}
 
 export function criarAssociado(overrides: Partial<AssociadoFixture> = {}): AssociadoFixture {
   return {
@@ -51,6 +118,20 @@ export function criarAssociado(overrides: Partial<AssociadoFixture> = {}): Assoc
     convidados_usados_mes: 5,
     franquia_convidados: 8,
     situacao_financeira: 'EM_DIA',
+    data_nascimento: null,
+    rg: null,
+    sexo: null,
+    profissao: null,
+    cep: null,
+    logradouro: null,
+    numero: null,
+    complemento: null,
+    bairro: null,
+    cidade: null,
+    uf: null,
+    plano: null,
+    data_inativacao: null,
+    motivo_inativacao: null,
     created_at: '2026-01-10T12:00:00Z',
     updated_at: '2026-01-10T12:00:00Z',
     ...overrides,
@@ -186,4 +267,6 @@ export const defaultHandlers = [
   http.get(`${API}/configuracao`, () => HttpResponse.json(CONFIGURACAO_PADRAO)),
   http.get(`${API}/whatsapp/qrcode`, () => HttpResponse.json({ status: 'CONECTADO', qrcode: null })),
   http.get(`${API}/whatsapp/logs`, () => HttpResponse.json([])),
+  // Cadastro de sócios: planos (select do formulário e página /admin/planos)
+  http.get(`${API}/planos/`, () => HttpResponse.json([])),
 ];

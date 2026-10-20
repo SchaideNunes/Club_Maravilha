@@ -12,43 +12,32 @@ import { renderAdmin } from '../../test/utils';
 import tailwindConfig from '../../../tailwind.config.js';
 
 describe('AssociadosPage Review (Itens 12, 13 e 14)', () => {
-  it('Item 12: falha na exclusão (500 com detail) exibe role="alert" e mantém o modal aberto', async () => {
+  it('Item 12: falha na inativação (500 com detail) exibe role="alert" e mantém o modal aberto', async () => {
     const socio = criarAssociado({
-      id: 'socio-delete-id-1',
+      id: 'socio-inativar-id-1',
       nome: 'Carlos Drummond',
     });
 
     server.use(
-      http.get(`${API}/associados/`, () => {
-        return HttpResponse.json(paginado([socio]));
-      }),
-      http.delete(`${API}/associados/:id`, () => {
-        return HttpResponse.json({ detail: 'Falha no banco de dados ao excluir associado' }, { status: 500 });
+      http.get(`${API}/associados/:id`, () => HttpResponse.json(socio)),
+      http.post(`${API}/associados/:id/inativar`, () => {
+        return HttpResponse.json({ detail: 'Falha no banco de dados ao inativar associado' }, { status: 500 });
       }),
     );
 
-    const { user } = renderAdmin({ route: '/admin/associados' });
+    const { user } = renderAdmin({ route: `/admin/associados/${socio.id}` });
 
-    // Localiza e abre o modal de exclusão
-    const btnExcluir = await screen.findByRole('button', { name: `Excluir ${socio.nome}` });
-    await user.click(btnExcluir);
+    await user.click(await screen.findByRole('button', { name: 'Inativar associado' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Inativar associado' });
 
-    const dialogExcluir = await screen.findByRole('dialog', { name: 'Excluir associado' });
-    expect(dialogExcluir).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Confirmar inativação' }));
 
-    // Clica para confirmar exclusão
-    const btnConfirmar = within(dialogExcluir).getByRole('button', { name: 'Confirmar exclusão' });
-    await user.click(btnConfirmar);
-
-    // O alert deve aparecer com a mensagem da API
-    const alerta = await within(dialogExcluir).findByRole('alert');
-    expect(alerta).toHaveTextContent('Falha no banco de dados ao excluir associado');
-
-    // O modal deve permanecer aberto
-    expect(screen.getByRole('dialog', { name: 'Excluir associado' })).toBeInTheDocument();
+    const alerta = await within(dialog).findByRole('alert');
+    expect(alerta).toHaveTextContent('Falha no banco de dados ao inativar associado');
+    expect(screen.getByRole('dialog', { name: 'Inativar associado' })).toBeInTheDocument();
   });
 
-  it('Item 13: foco inicial no campo Nome, Escape fecha e devolve foco ao botão disparador', async () => {
+  it('Item 13: foco inicial no primeiro campo, Escape fecha e devolve foco ao botão disparador', async () => {
     const socio = criarAssociado();
 
     server.use(
@@ -59,33 +48,25 @@ describe('AssociadosPage Review (Itens 12, 13 e 14)', () => {
 
     const { user } = renderAdmin({ route: '/admin/associados' });
 
-    const btnNovo = await screen.findByRole('button', { name: 'Novo associado' });
-    btnNovo.focus();
-    expect(btnNovo).toHaveFocus();
+    const btnConvidado = await screen.findByRole('button', { name: `Adicionar convidado para ${socio.nome}` });
+    btnConvidado.focus();
+    expect(btnConvidado).toHaveFocus();
 
-    // Abre o modal
-    await user.click(btnNovo);
+    await user.click(btnConvidado);
 
-    const dialogNovo = await screen.findByRole('dialog', { name: 'Novo associado' });
-    expect(dialogNovo).toBeInTheDocument();
-
-    // Foco inicial deve ir para o campo "Nome"
-    const inputNome = within(dialogNovo).getByLabelText('Nome');
+    const dialog = await screen.findByRole('dialog', { name: 'Adicionar convidado' });
+    const inputNome = within(dialog).getByLabelText('Nome do convidado');
     await waitFor(() => {
       expect(inputNome).toHaveFocus();
     });
 
-    // Pressionar tecla Escape deve fechar o modal
     await user.keyboard('{Escape}');
 
-    // Modal fechou
     await waitFor(() => {
-      expect(screen.queryByRole('dialog', { name: 'Novo associado' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Adicionar convidado' })).not.toBeInTheDocument();
     });
-
-    // Foco deve retornar ao botão que abriu o modal
     await waitFor(() => {
-      expect(btnNovo).toHaveFocus();
+      expect(btnConvidado).toHaveFocus();
     });
   });
 

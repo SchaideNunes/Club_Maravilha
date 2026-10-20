@@ -6,13 +6,15 @@
  *     /admin/login          -> LoginPage (pública)
  *     /admin                -> ProtectedRoute + AdminLayout (com <Outlet/>), índice = DashboardPage
  *     /admin/associados     -> AssociadosPage
+ *     /admin/associados/novo -> NovoAssociadoPage; /admin/associados/:id -> FichaAssociadoPage
+ *     /admin/planos         -> PlanosPage
  *     /admin/mensalidades   -> MensalidadesPage com <h1>"Mensalidades"</h1> (Feature 6; substituiu o placeholder)
  *     /admin/whatsapp       -> WhatsAppConfigPage com <h1>"WhatsApp & Configurações"</h1> (Feature 6; idem)
  *     /admin/<desconhecida> -> redireciona para /admin
  * - `src/admin/AdminApp.tsx` exporta `AdminApp`: QueryClientProvider + BrowserRouter + AuthProvider + AdminRoutes.
  * - `src/admin/layout/AdminLayout.tsx` exporta `AdminLayout` (sidebar desktop-first):
  *     <nav aria-label="Menu principal"> com links (ícone lucide <svg> em cada um):
- *       "Dashboard" (/admin), "Associados" (/admin/associados), "Mensalidades" (/admin/mensalidades),
+ *       "Dashboard" (/admin), "Associados" (/admin/associados), "Planos" (/admin/planos), "Mensalidades" (/admin/mensalidades),
  *       "WhatsApp & Configurações" (/admin/whatsapp); link ativo com aria-current="page".
  *     Nome do usuário logado, botão "Sair" e indicador data-testid="whatsapp-indicator" com o rótulo do
  *     GET /whatsapp/status ("Conectado" | "Desconectado" | "Aguardando QR Code"; falha -> "Desconectado").
@@ -27,6 +29,7 @@ import { renderAdmin } from '../test/utils';
 const LINKS = [
   ['Dashboard', '/admin'],
   ['Associados', '/admin/associados'],
+  ['Planos', '/admin/planos'],
   ['Mensalidades', '/admin/mensalidades'],
   ['WhatsApp & Configurações', '/admin/whatsapp'],
 ] as const;
@@ -62,7 +65,7 @@ describe('rotas do admin', () => {
 });
 
 describe('AdminLayout', () => {
-  it('sidebar com os 4 itens de navegação, ícones e links corretos', async () => {
+  it('sidebar com os 5 itens de navegação, ícones e links corretos', async () => {
     renderAdmin({ route: '/admin/mensalidades' });
 
     const nav = await screen.findByRole('navigation', { name: 'Menu principal' });

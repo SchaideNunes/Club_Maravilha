@@ -3,14 +3,17 @@
  * rota /admin/associados). Exporta `AssociadosPage`.
  *
  * Contratos de UI (o que os testes procuram):
- * - <h1>"Associados"</h1>; <table> com cabeçalhos Nome, CPF, WhatsApp, Vencimento, Situação, Convites, Ações.
- *   Cada linha: nome, CPF formatado, WhatsApp "(DD) 99999-9999", "Dia <dia_vencimento>", rótulo da situação
- *   ("Em dia" | "Pendente" | "Atrasado") e "<convidados_usados_mes>/<franquia_convidados> convites".
+ * - <h1>"Associados"</h1>; <table> com cabeçalhos Nome, CPF, WhatsApp, Plano, Vencimento, Situação, Convites, Ações.
+ *   Cada linha: nome (link para a ficha /admin/associados/<id>), CPF formatado, WhatsApp "(DD) 99999-9999",
+ *   nome do plano (ou "Padrão"), "Dia <dia_vencimento>", rótulo da situação ("Em dia" | "Pendente" |
+ *   "Atrasado"; sócio inativo mostra "Inativo") e "<convidados_usados_mes>/<franquia_convidados> convites".
+ *   Ações: "+ Adicionar Convidado" (não aparece para inativos) e link "Abrir ficha de <nome>".
  *   Vazio: "Nenhum associado encontrado". Erro: role="alert" com "Não foi possível carregar...".
  * - Busca: input com label "Buscar por nome ou CPF", debounce (~300-500 ms) -> GET /associados/?q=<termo>
  *   (uma requisição por termo final, não por tecla) e volta para a página 1.
  * - Filtro: <select> com label "Situação", opções "Todas" (sem parâmetro), "Em dia" (EM_DIA),
- *   "Pendente" (PENDENTE), "Atrasado" (ATRASADO) -> parâmetro `situacao`.
+ *   "Pendente" (PENDENTE), "Atrasado" (ATRASADO) -> parâmetro `situacao`. <select> "Cadastro" com
+ *   "Ativos" (padrão, sem parâmetro: o backend oculta inativos) e "Inativos" (status=INATIVO).
  * - Paginação: texto "Página X de Y", botões "Página anterior" / "Próxima página" (desabilitados nas pontas)
  *   -> parâmetro `page`.
  * - Convidado: por linha, botão com texto "+ Adicionar Convidado" e aria-label
@@ -20,13 +23,8 @@
  *   Nome vazio -> "Informe o nome do convidado" (sem chamar a API).
  *   Resposta GRATUITO -> mensagem "Convite emitido..."; EXCEDENTE -> role="alert" destacado com o `aviso`
  *   da API e a taxa `valor_taxa_extra` formatada em R$. O contador da tabela é atualizado (refetch).
- * - Associado: botão "Novo associado" -> dialog "Novo associado" com campos "Nome", "CPF", "WhatsApp",
- *   "E-mail", "Dia de vencimento" e botão "Salvar" -> POST /associados/ {nome, cpf, whatsapp, email,
- *   dia_vencimento:number}. Validação básica local (mensagens contendo "obrigatório").
- *   Erros 409 (detail string) e 422 (detail lista Pydantic -> msg) exibidos em role="alert" no dialog.
- *   Por linha: "Editar <nome>" -> dialog "Editar associado" pré-preenchido (CPF não editável) ->
- *   PATCH /associados/{id} sem `cpf`; "Excluir <nome>" -> dialog "Excluir associado" com o nome e
- *   botão "Confirmar exclusão" -> DELETE /associados/{id}.
+ * - Associado: link "Novo associado" -> página /admin/associados/novo (NovoAssociadoPage). Edição e
+ *   inativação ficam na ficha do sócio (FichaAssociadoPage); não existe mais exclusão.
  * - Importação: botão "Importar planilha" -> dialog "Importar planilha" com input file de label
  *   "Arquivo da planilha" (accept .xlsx,.csv), checkbox "Atualizar existentes" e botão "Enviar planilha"
  *   -> POST /associados/importar?atualizar_existentes=true|false (multipart, campo `file`).
@@ -42,7 +40,15 @@ import { server } from '../../test/server';
 import { API, AssociadoFixture, criarAssociado, paginado } from '../../test/handlers';
 import { renderAdmin } from '../../test/utils';
 
-const MARIA = criarAssociado();
+const MARIA = criarAssociado({ plano: { id: 'p1', nome: 'Familiar', valor_mensalidade: '220.00' } });
+const IVO_INATIVO = criarAssociado({
+  id: '55555555-5555-4555-8555-555555555555',
+  nome: 'Ivo Inativo',
+  cpf: '123.456.789-09',
+  email: 'ivo@exemplo.com',
+  status: 'INATIVO',
+  data_inativacao: '2026-09-01',
+});
 const JOAO = criarAssociado({
   id: '33333333-3333-4333-8333-333333333333',
   nome: 'João Lima',
@@ -68,8 +74,10 @@ function backendAssociados(inicial: AssociadoFixture[] = [MARIA, JOAO], opcoes: 
       requisicoes.push({ method: 'GET', url });
       const q = url.searchParams.get('q')?.toLowerCase();
       const situacao = url.searchParams.get('situacao');
+      const status = url.searchParams.get('status');
       const page = Number(url.searchParams.get('page') ?? 1);
-      let itens = socios;
+      // Como o backend: inativos só aparecem com status=INATIVO
+      let itens = socios.filter((s) => (status ? s.status === status : s.status !== 'INATIVO'));
       if (q) itens = itens.filter((s) => s.nome.toLowerCase().includes(q) || s.cpf.replace(/\D/g, '').includes(q.replace(/\D/g, '') || '#'));
       if (situacao) itens = itens.filter((s) => s.situacao_financeira === situacao);
       const totalPages = opcoes.totalPages ?? 1;
@@ -138,7 +146,7 @@ describe('AssociadosPage - tabela', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Associados' })).toBeInTheDocument();
     const tabela = await screen.findByRole('table');
-    for (const cabecalho of ['Nome', 'CPF', 'WhatsApp', 'Vencimento', 'Situação', 'Convites', 'Ações']) {
+    for (const cabecalho of ['Nome', 'CPF', 'WhatsApp', 'Plano', 'Vencimento', 'Situação', 'Convites', 'Ações']) {
       expect(within(tabela).getByRole('columnheader', { name: cabecalho })).toBeInTheDocument();
     }
 
@@ -146,14 +154,36 @@ describe('AssociadosPage - tabela', () => {
     expect(maria).toHaveTextContent('529.982.247-25');
     expect(maria).toHaveTextContent('(75) 99999-8888');
     expect(maria).toHaveTextContent('Dia 10');
+    expect(maria).toHaveTextContent('Familiar');
     expect(within(maria).getByText('Em dia')).toBeInTheDocument();
     expect(within(maria).getByText('5/8 convites')).toBeInTheDocument();
 
     const joao = await linhaDe('João Lima');
     expect(joao).toHaveTextContent('(75) 3221-1234');
     expect(joao).toHaveTextContent('Dia 20');
+    expect(joao).toHaveTextContent('Padrão');
     expect(within(joao).getByText('Atrasado')).toBeInTheDocument();
     expect(within(joao).getByText('8/8 convites')).toBeInTheDocument();
+  });
+
+  it('nome do sócio e "Ver ficha" levam à ficha completa', async () => {
+    backendAssociados();
+    const { user } = renderAdmin({ route: '/admin/associados' });
+    const maria = await linhaDe('Maria Souza');
+
+    expect(within(maria).getByRole('link', { name: 'Maria Souza' })).toHaveAttribute('href', `/admin/associados/${MARIA.id}`);
+    await user.click(within(maria).getByRole('link', { name: 'Abrir ficha de Maria Souza' }));
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(`/admin/associados/${MARIA.id}`));
+  });
+
+  it('não há mais exclusão nem edição em modal na listagem', async () => {
+    backendAssociados();
+    renderAdmin({ route: '/admin/associados' });
+    const maria = await linhaDe('Maria Souza');
+
+    expect(within(maria).queryByRole('button', { name: /excluir/i })).not.toBeInTheDocument();
+    expect(within(maria).queryByRole('button', { name: /editar/i })).not.toBeInTheDocument();
   });
 
   it('estado vazio', async () => {
@@ -228,6 +258,25 @@ describe('AssociadosPage - busca, filtro e paginação', () => {
 
     await user.selectOptions(filtro, 'Todas');
     await waitFor(() => expect(api.listas().at(-1)!.url.searchParams.has('situacao')).toBe(false));
+  });
+
+  it('filtro de cadastro: ativos por padrão e inativos com status=INATIVO', async () => {
+    const api = backendAssociados([MARIA, JOAO, IVO_INATIVO]);
+    const { user } = renderAdmin({ route: '/admin/associados' });
+    await linhaDe('Maria Souza');
+
+    expect(api.listas()[0].url.searchParams.has('status')).toBe(false);
+    expect(screen.queryByRole('row', { name: /Ivo Inativo/ })).not.toBeInTheDocument();
+
+    const filtro = screen.getByLabelText('Cadastro');
+    expect(within(filtro).getAllByRole('option').map((o) => o.textContent)).toEqual(['Ativos', 'Inativos']);
+    await user.selectOptions(filtro, 'Inativos');
+
+    await waitFor(() => expect(api.listas().at(-1)!.url.searchParams.get('status')).toBe('INATIVO'));
+    const ivo = await linhaDe('Ivo Inativo');
+    expect(within(ivo).getByText('Inativo')).toBeInTheDocument();
+    // Sócio desligado não emite convite
+    expect(within(ivo).queryByRole('button', { name: /adicionar convidado/i })).not.toBeInTheDocument();
   });
 
   it('paginação', async () => {
@@ -358,110 +407,19 @@ describe('AssociadosPage - adicionar convidado', () => {
 });
 
 // ------------------------------------------------------------------------------
-// CRUD de associado
+// Cadastro: a criação acontece na página /admin/associados/novo (ver NovoAssociadoPage.test.tsx)
 // ------------------------------------------------------------------------------
-describe('AssociadosPage - criar, editar e excluir', () => {
-  it('validação básica no cadastro sem chamar a API', async () => {
-    const api = backendAssociados();
-    const { user } = renderAdmin({ route: '/admin/associados' });
-    await linhaDe('Maria Souza');
-
-    await user.click(screen.getByRole('button', { name: 'Novo associado' }));
-    const dialog = await screen.findByRole('dialog', { name: /novo associado/i });
-    await user.click(within(dialog).getByRole('button', { name: 'Salvar' }));
-
-    expect((await within(dialog).findAllByText(/obrigatório/i)).length).toBeGreaterThan(0);
-    expect(api.porMetodo('POST')).toHaveLength(0);
-  });
-
-  it('cria associado e atualiza a lista', async () => {
-    const api = backendAssociados();
-    const { user } = renderAdmin({ route: '/admin/associados' });
-    await linhaDe('Maria Souza');
-
-    await user.click(screen.getByRole('button', { name: 'Novo associado' }));
-    const dialog = await screen.findByRole('dialog', { name: /novo associado/i });
-    await user.type(within(dialog).getByLabelText('Nome'), 'Paula Ramos');
-    await user.type(within(dialog).getByLabelText('CPF'), '39053344705');
-    await user.type(within(dialog).getByLabelText('WhatsApp'), '75988887777');
-    await user.type(within(dialog).getByLabelText('E-mail'), 'paula@exemplo.com');
-    const dia = within(dialog).getByLabelText('Dia de vencimento');
-    await user.clear(dia);
-    await user.type(dia, '15');
-    await user.click(within(dialog).getByRole('button', { name: 'Salvar' }));
-
-    await waitFor(() => expect(api.porMetodo('POST')).toHaveLength(1));
-    expect(api.porMetodo('POST')[0].body).toMatchObject({
-      nome: 'Paula Ramos',
-      cpf: '39053344705',
-      whatsapp: '75988887777',
-      email: 'paula@exemplo.com',
-      dia_vencimento: 15,
-    });
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(await linhaDe('Paula Ramos')).toBeInTheDocument();
-  });
-
-  it.each([
-    [409, { detail: 'Já existe um associado com este CPF.' }, /Já existe um associado com este CPF/],
-    [422, { detail: [{ loc: ['body', 'cpf'], msg: 'Value error, CPF inválido', type: 'value_error' }] }, /CPF inválido/],
-  ])('erro %i do backend aparece no modal', async (status, corpo, esperado) => {
+describe('AssociadosPage - novo associado', () => {
+  it('"Novo associado" leva à página de cadastro completo', async () => {
     backendAssociados();
-    server.use(http.post(`${API}/associados/`, () => HttpResponse.json(corpo, { status })));
     const { user } = renderAdmin({ route: '/admin/associados' });
     await linhaDe('Maria Souza');
 
-    await user.click(screen.getByRole('button', { name: 'Novo associado' }));
-    const dialog = await screen.findByRole('dialog', { name: /novo associado/i });
-    await user.type(within(dialog).getByLabelText('Nome'), 'Paula Ramos');
-    await user.type(within(dialog).getByLabelText('CPF'), '39053344705');
-    await user.type(within(dialog).getByLabelText('WhatsApp'), '75988887777');
-    await user.type(within(dialog).getByLabelText('E-mail'), 'paula@exemplo.com');
-    await user.click(within(dialog).getByRole('button', { name: 'Salvar' }));
+    const link = screen.getByRole('link', { name: 'Novo associado' });
+    expect(link).toHaveAttribute('href', '/admin/associados/novo');
+    await user.click(link);
 
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(esperado);
-    expect(screen.getByRole('dialog', { name: /novo associado/i })).toBeInTheDocument();
-  });
-
-  it('edita associado via PATCH sem enviar CPF', async () => {
-    const api = backendAssociados();
-    const { user } = renderAdmin({ route: '/admin/associados' });
-    const linha = await linhaDe('Maria Souza');
-
-    await user.click(within(linha).getByRole('button', { name: 'Editar Maria Souza' }));
-    const dialog = await screen.findByRole('dialog', { name: /editar associado/i });
-    const nome = within(dialog).getByLabelText('Nome');
-    expect(nome).toHaveValue('Maria Souza');
-    const cpf = within(dialog).queryByLabelText('CPF');
-    if (cpf) expect(cpf).toBeDisabled();
-
-    await user.clear(nome);
-    await user.type(nome, 'Maria Souza Lima');
-    await user.click(within(dialog).getByRole('button', { name: 'Salvar' }));
-
-    await waitFor(() => expect(api.porMetodo('PATCH')).toHaveLength(1));
-    const req = api.porMetodo('PATCH')[0];
-    expect(req.url.pathname).toBe(`/api/v1/associados/${MARIA.id}`);
-    expect(req.body).toMatchObject({ nome: 'Maria Souza Lima' });
-    expect(req.body).not.toHaveProperty('cpf');
-    expect(await linhaDe('Maria Souza Lima')).toBeInTheDocument();
-  });
-
-  it('exclui associado após confirmação', async () => {
-    const api = backendAssociados();
-    const { user } = renderAdmin({ route: '/admin/associados' });
-    const linha = await linhaDe('João Lima');
-
-    await user.click(within(linha).getByRole('button', { name: 'Excluir João Lima' }));
-    const dialog = await screen.findByRole('dialog', { name: /excluir associado/i });
-    expect(dialog).toHaveTextContent('João Lima');
-    expect(api.porMetodo('DELETE')).toHaveLength(0);
-
-    await user.click(within(dialog).getByRole('button', { name: 'Confirmar exclusão' }));
-
-    await waitFor(() => expect(api.porMetodo('DELETE')).toHaveLength(1));
-    expect(api.porMetodo('DELETE')[0].url.pathname).toBe(`/api/v1/associados/${JOAO.id}`);
-    await waitFor(() => expect(screen.queryByRole('row', { name: /João Lima/ })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/admin/associados/novo'));
   });
 });
 

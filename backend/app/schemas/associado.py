@@ -9,8 +9,15 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, PrivateAttr, field_
 from app.core.config import settings
 from app.core.cpf import validate_and_format_cpf
 from app.core.phone import sanitize_whatsapp_number
-from app.models.associado import StatusAssociado
-from app.schemas.validators import rejeitar_null
+from app.models.associado import Sexo, StatusAssociado
+from app.schemas.plano import PlanoResumo
+from app.schemas.validators import (
+    normalizar_cep,
+    normalizar_uf,
+    rejeitar_null,
+    texto_opcional,
+    validar_data_nascimento,
+)
 
 
 class SituacaoFinanceira(str, enum.Enum):
@@ -19,16 +26,66 @@ class SituacaoFinanceira(str, enum.Enum):
     ATRASADO = "ATRASADO"
 
 
-class AssociadoBase(BaseModel):
+CAMPOS_TEXTO_OPCIONAIS = (
+    "rg",
+    "profissao",
+    "cep",
+    "logradouro",
+    "numero",
+    "complemento",
+    "bairro",
+    "cidade",
+    "uf",
+    "observacoes",
+)
+
+
+class DadosCadastrais(BaseModel):
+    """Dados pessoais e endereço da ficha do sócio (todos opcionais)."""
+    data_nascimento: Optional[date] = None
+    rg: Optional[str] = Field(None, max_length=20)
+    sexo: Optional[Sexo] = None
+    profissao: Optional[str] = Field(None, max_length=100)
+    cep: Optional[str] = Field(None, max_length=10, example="44001-000")
+    logradouro: Optional[str] = Field(None, max_length=150)
+    numero: Optional[str] = Field(None, max_length=10)
+    complemento: Optional[str] = Field(None, max_length=80)
+    bairro: Optional[str] = Field(None, max_length=80)
+    cidade: Optional[str] = Field(None, max_length=80)
+    uf: Optional[str] = Field(None, max_length=2, example="BA")
+    observacoes: Optional[str] = None
+
+    @field_validator(*CAMPOS_TEXTO_OPCIONAIS, mode="before")
+    @classmethod
+    def textos_em_branco_viram_null(cls, valor: Any) -> Any:
+        return texto_opcional(valor)
+
+    @field_validator("cep")
+    @classmethod
+    def validar_cep(cls, valor: Optional[str]) -> Optional[str]:
+        return normalizar_cep(valor)
+
+    @field_validator("uf")
+    @classmethod
+    def validar_uf(cls, valor: Optional[str]) -> Optional[str]:
+        return normalizar_uf(valor)
+
+    @field_validator("data_nascimento")
+    @classmethod
+    def validar_nascimento(cls, valor: Optional[date]) -> Optional[date]:
+        return validar_data_nascimento(valor)
+
+
+class AssociadoBase(DadosCadastrais):
     nome: str = Field(..., min_length=3, max_length=150, example="Carlos Eduardo Silva")
     cpf: str = Field(..., example="123.456.789-00")
     whatsapp: str = Field(..., min_length=10, max_length=20, example="+5511999998888")
     email: EmailStr = Field(..., example="carlos.silva@exemplo.com")
     foto_url: Optional[str] = Field(None, example="https://storage.clubmaravilha.com.br/fotos/carlos.webp")
-    observacoes: Optional[str] = None
 
 
 class AssociadoCreate(AssociadoBase):
+    plano_id: Optional[uuid.UUID] = None
     _line_num: int = PrivateAttr(default=0)
     dia_vencimento: int = Field(
         default=settings.DIA_VENCIMENTO_PADRAO,
@@ -71,7 +128,7 @@ CAMPOS_ATUALIZAVEIS_NAO_NULOS = (
 )
 
 
-class AssociadoUpdate(BaseModel):
+class AssociadoUpdate(DadosCadastrais):
     nome: Optional[str] = Field(None, min_length=3, max_length=150)
     whatsapp: Optional[str] = Field(None, min_length=10, max_length=20)
     email: Optional[EmailStr] = None
@@ -79,7 +136,8 @@ class AssociadoUpdate(BaseModel):
     status: Optional[StatusAssociado] = None
     limite_reservas_ativas: Optional[int] = Field(None, ge=1, le=5)
     dia_vencimento: Optional[int] = Field(None, ge=1, le=31)
-    observacoes: Optional[str] = None
+    # null desvincula o plano (o sócio volta a pagar a mensalidade padrão das configurações)
+    plano_id: Optional[uuid.UUID] = None
 
     @field_validator(*CAMPOS_ATUALIZAVEIS_NAO_NULOS)
     @classmethod
@@ -107,6 +165,9 @@ class AssociadoResponse(AssociadoBase):
     limite_reservas_ativas: int
     data_adesao: date
     dia_vencimento: int
+    plano: Optional[PlanoResumo] = None
+    data_inativacao: Optional[date] = None
+    motivo_inativacao: Optional[str] = None
     convidados_usados_mes: int = Field(
         default=0,
         description="Convites de visitantes usados pelo sócio no mês corrente (exceto cancelados)",
@@ -148,3 +209,19 @@ class ImportAssociadosResult(BaseModel):
     )
     total_ignorados_duplicados: int
     erros: List[ImportErrorDetail]
+
+
+class InativarAssociadoRequest(BaseModel):
+    motivo: Optional[str] = Field(None, max_length=255, example="Mudou de cidade")
+
+    @field_validator("motivo", mode="before")
+    @classmethod
+    def motivo_em_branco_vira_null(cls, valor: Any) -> Any:
+        return texto_opcional(valor)
+
+
+class InativacaoAssociadoResponse(BaseModel):
+    associado: AssociadoResponse
+    faturas_canceladas: int = Field(description="Faturas pendentes ainda não vencidas que foram canceladas")
+    convites_cancelados: int = Field(description="Convites emitidos para visitas a partir de hoje")
+    reservas_canceladas: int = Field(description="Reservas de quadra futuras confirmadas")

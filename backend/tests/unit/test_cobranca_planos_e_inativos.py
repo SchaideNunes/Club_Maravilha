@@ -153,7 +153,8 @@ async def test_inativo_com_divida_antiga_nao_vira_inadimplente(db_session):
     inativo = _socio(1, status=StatusAssociado.INATIVO)
     db_session.add(inativo)
     await db_session.flush()
-    db_session.add(Fatura(associado_id=inativo.id, referencia_mes="2026-07", valor_base=Decimal("150.00"),
+    inativo_id = inativo.id
+    db_session.add(Fatura(associado_id=inativo_id, referencia_mes="2026-07", valor_base=Decimal("150.00"),
                           valor_total=Decimal("150.00"), data_vencimento=hoje - timedelta(days=60),
                           status=StatusFatura.ATRASADA))
     await db_session.commit()
@@ -162,5 +163,5 @@ async def test_inativo_com_divida_antiga_nao_vira_inadimplente(db_session):
         data_referencia=hoje
     )
 
-    db_session.expire_all()
-    assert (await db_session.get(Associado, inativo.id)).status == StatusAssociado.INATIVO
+    status_atual = await db_session.scalar(select(Associado.status).where(Associado.id == inativo_id))
+    assert status_atual == StatusAssociado.INATIVO

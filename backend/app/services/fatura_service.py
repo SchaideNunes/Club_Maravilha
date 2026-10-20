@@ -332,7 +332,10 @@ class FaturaService:
         # 1. Busca todos os sócios cuja data_adesao seja anterior ou igual ao fim do mês de referência
         socios_query = (
             select(Associado)
-            .where(Associado.data_adesao <= limite_adesao)
+            .where(
+                Associado.data_adesao <= limite_adesao,
+                Associado.status != StatusAssociado.INATIVO,
+            )
         )
         socios_elegiveis = list((await self.session.execute(socios_query)).scalars().all())
 
@@ -376,9 +379,13 @@ class FaturaService:
             usados = convidados_count.get(socio.id, 0)
             extras = max(0, usados - franquia)
             valor_excedentes = (Decimal(extras) * valor_extra).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-            valor_base = valor_mensalidade
+            # O plano do sócio (mesmo desativado) define a mensalidade; sem plano vale a da Configuracao
+            valor_base = socio.plano.valor_mensalidade if socio.plano else valor_mensalidade
             valor_desconto = Decimal("0.00")
             valor_total = calcular_valor_total_fatura(valor_base, valor_excedentes, valor_desconto)
+            if valor_total == 0:
+                # Sócio isento (plano de valor 0) sem convidados excedentes: nada a cobrar no mês
+                continue
             # Item 7: adesão no meio do mês não nasce vencida
             vencimento = max(calcular_data_vencimento(referencia_mes, socio.dia_vencimento), socio.data_adesao)
 

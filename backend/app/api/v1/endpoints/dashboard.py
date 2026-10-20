@@ -15,7 +15,7 @@ from app.api.deps import get_current_admin
 from app.api.v1.endpoints.whatsapp import get_provider
 from app.core import clock
 from app.core.database import get_db
-from app.models.associado import Associado
+from app.models.associado import Associado, StatusAssociado
 from app.models.fatura import Fatura, StatusFatura
 from app.models.log_mensagem import LogMensagem, StatusEnvio
 from app.models.usuario_admin import UsuarioAdmin
@@ -53,9 +53,11 @@ async def obter_resumo(
     """
     Retorna métricas agregadas operacionais para o dashboard.
     """
-    # 1. Total de associados
+    # 1. Total de associados (sem os inativos, desligados do clube)
     total_associados = (
-        await db.execute(select(func.count()).select_from(Associado))
+        await db.execute(
+            select(func.count()).select_from(Associado).where(Associado.status != StatusAssociado.INATIVO)
+        )
     ).scalar_one()
 
     # 2. Mês de referência corrente no fuso do clube

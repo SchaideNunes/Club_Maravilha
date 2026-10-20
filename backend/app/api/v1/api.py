@@ -13,8 +13,10 @@ from app.api.v1.endpoints import (
     configuracao,
     convidados,
     dashboard,
+    familia,
     faturas,
     health,
+    planos,
     webhooks,
     whatsapp,
 )
@@ -36,6 +38,10 @@ api_router.include_router(webhooks.router, prefix="/webhooks", tags=["Webhooks d
 admin_router = APIRouter(dependencies=[Depends(get_current_admin)])
 
 admin_router.include_router(associados.router, prefix="/associados", tags=["Associados"])
+admin_router.include_router(
+    familia.router, prefix="/associados/{associado_id}/familia", tags=["Associados - Família"]
+)
+admin_router.include_router(planos.router, prefix="/planos", tags=["Planos de Mensalidade"])
 admin_router.include_router(faturas.router, prefix="/faturas", tags=["Financeiro & Mensalidades"])
 admin_router.include_router(agendamentos.router, prefix="/agendamentos", tags=["Quadras Esportivas"])
 admin_router.include_router(convidados.router, prefix="/convidados", tags=["Gestão de Convidados & Visitantes"])

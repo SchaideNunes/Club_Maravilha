@@ -15,7 +15,7 @@ from app.models.configuracao import (
     TEMPLATE_RECIBO_PADRAO,
     VARIAVEIS_TEMPLATE,
 )
-from app.schemas.associado import CAMPOS_ATUALIZAVEIS_NAO_NULOS, AssociadoUpdate
+from app.schemas.associado import CAMPOS_ATUALIZAVEIS_NAO_NULOS, CAMPOS_TEXTO_OPCIONAIS, AssociadoUpdate
 from app.schemas.configuracao import CAMPOS_NAO_NULOS, ConfiguracaoUpdate, validar_template
 from app.schemas.fatura import FaturaBaixaManual
 
@@ -127,13 +127,17 @@ def test_associado_update_rejeita_null_explicito(campo):
     assert erro.value.errors()[0]["loc"] == (campo,)
 
 
-@pytest.mark.parametrize("campo", ["foto_url", "observacoes"])
+# Colunas anuláveis: null limpa o valor (plano_id null desvincula o plano)
+CAMPOS_ANULAVEIS = {"foto_url", "plano_id", "data_nascimento", "sexo", *CAMPOS_TEXTO_OPCIONAIS}
+
+
+@pytest.mark.parametrize("campo", sorted(CAMPOS_ANULAVEIS))
 def test_associado_update_campos_opcionais_aceitam_null(campo):
     assert AssociadoUpdate(**{campo: None}).model_dump(exclude_unset=True) == {campo: None}
 
 
 def test_associado_update_toda_coluna_nova_precisa_decidir_sobre_null():
-    assert set(AssociadoUpdate.model_fields) == set(CAMPOS_ATUALIZAVEIS_NAO_NULOS) | {"foto_url", "observacoes"}
+    assert set(AssociadoUpdate.model_fields) == set(CAMPOS_ATUALIZAVEIS_NAO_NULOS) | CAMPOS_ANULAVEIS
 
 
 # ------------------------------------------------------------------------------

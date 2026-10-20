@@ -68,3 +68,6 @@ Thumbs.db
 # Logs
 logs/
 *.log
+
+# Arquivos enviados pelo painel (fotos dos sócios)
+backend/uploads/

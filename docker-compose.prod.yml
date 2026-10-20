@@ -57,6 +57,9 @@ services:
       WHATSAPP_ENGINE_URL: http://whatsapp-engine:3001
       WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:?defina WHATSAPP_API_KEY no .env}
       WHATSAPP_PROVIDER: BAILEYS
+    volumes:
+      # Fotos dos sócios enviadas pelo painel (UPLOADS_DIR relativo a /app)
+      - uploads_data:/app/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -125,6 +128,8 @@ services:
 # ------------------------------------------------------------------------------
 volumes:
   postgres_data:
+    driver: local
+  uploads_data:
     driver: local
   certbot_certs:
     driver: local

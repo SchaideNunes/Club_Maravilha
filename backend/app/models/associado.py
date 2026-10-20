@@ -2,9 +2,10 @@
 Modelo da tabela de Associados (Sócios do Clube).
 """
 import enum
+import uuid
 from datetime import date
 from typing import TYPE_CHECKING, List, Optional
-from sqlalchemy import CheckConstraint, Date, Enum, Integer, String, Text, func
+from sqlalchemy import CheckConstraint, Date, Enum, ForeignKey, Integer, String, Text, func
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.clock import hoje_clube
@@ -16,12 +17,23 @@ if TYPE_CHECKING:
     from app.models.fatura import Fatura
     from app.models.agendamento import AgendamentoQuadra
     from app.models.convidado import Convidado
+    from app.models.membro_familia import MembroFamilia
+    from app.models.plano import Plano
 
 
 class StatusAssociado(str, enum.Enum):
     ATIVO = "ATIVO"
     INADIMPLENTE = "INADIMPLENTE"
     BLOQUEADO = "BLOQUEADO"
+    # Desligado do clube: o cadastro e o histórico são preservados, mas o sócio não recebe
+    # faturas nem lembretes, não entra na catraca e some da listagem padrão
+    INATIVO = "INATIVO"
+
+
+class Sexo(str, enum.Enum):
+    MASCULINO = "MASCULINO"
+    FEMININO = "FEMININO"
+    OUTRO = "OUTRO"
 
 
 class Associado(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -73,7 +85,40 @@ class Associado(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     observacoes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Dados pessoais
+    data_nascimento: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    rg: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    sexo: Mapped[Optional[Sexo]] = mapped_column(Enum(Sexo, native_enum=False, length=20), nullable=True)
+    profissao: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
+    # Endereço
+    cep: Mapped[Optional[str]] = mapped_column(String(9), nullable=True)
+    logradouro: Mapped[Optional[str]] = mapped_column(String(150), nullable=True)
+    numero: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    complemento: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    bairro: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    cidade: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    uf: Mapped[Optional[str]] = mapped_column(String(2), nullable=True)
+
+    # Plano de mensalidade (sem plano: vale Configuracao.valor_mensalidade)
+    plano_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        ForeignKey("planos.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+
+    # Inativação (substitui a exclusão para preservar o histórico financeiro)
+    data_inativacao: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    motivo_inativacao: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
     # Relacionamentos bidirecionais
+    plano: Mapped[Optional["Plano"]] = relationship("Plano", lazy="joined")
+    membros_familia: Mapped[List["MembroFamilia"]] = relationship(
+        "MembroFamilia",
+        back_populates="associado",
+        cascade="all, delete-orphan",
+        order_by="MembroFamilia.nome",
+    )
     faturas: Mapped[List["Fatura"]] = relationship(
         "Fatura",
         back_populates="associado",

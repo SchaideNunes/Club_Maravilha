@@ -87,6 +87,9 @@ class Settings(BaseSettings):
     TIMEZONE: str = "America/Sao_Paulo"
     IMPORT_MAX_BYTES: int = 5 * 1024 * 1024  # 5 MB
     IMPORT_MAX_LINHAS: int = 5000
+    # Arquivos enviados pelo painel (fotos dos sócios); relativo ao diretório de trabalho da API
+    UPLOADS_DIR: str = "uploads"
+    FOTO_MAX_BYTES: int = 5 * 1024 * 1024  # 5 MB
     VALOR_MENSALIDADE_PADRAO: float = 150.00
     DIA_VENCIMENTO_PADRAO: int = 10
     FRANQUIA_CONVITES_MENSAL: int = 8

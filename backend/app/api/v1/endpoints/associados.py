@@ -4,6 +4,7 @@ Endpoints da API v1 para Gestão de Associados, Emissão Rápida de Convites e I
 import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import settings
 from app.core.database import get_db
@@ -13,6 +14,8 @@ from app.schemas.associado import (
     AssociadoResponse,
     AssociadoUpdate,
     ImportAssociadosResult,
+    InativacaoAssociadoResponse,
+    InativarAssociadoRequest,
     PaginatedAssociadosResponse,
     SituacaoFinanceira,
 )
@@ -32,7 +35,7 @@ async def list_associados(
     situacao: Optional[SituacaoFinanceira] = Query(None, description="Filtrar por situação financeira"),
     db: AsyncSession = Depends(get_db)
 ) -> PaginatedAssociadosResponse:
-    """Lista associados com busca textual, paginação e filtro por situação financeira."""
+    """Lista associados com busca textual, paginação e filtro por situação financeira (inativos só com status=INATIVO)."""
     service = AssociadoService(db)
     return await service.list_paginated(
         page=page,
@@ -111,14 +114,67 @@ async def update_associado(
     return await service.update_associado(associado_id, data)
 
 
-@router.delete("/{associado_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_associado(
+@router.post("/{associado_id}/inativar", response_model=InativacaoAssociadoResponse)
+async def inativar_associado(
+    associado_id: uuid.UUID,
+    data: InativarAssociadoRequest,
+    db: AsyncSession = Depends(get_db)
+) -> InativacaoAssociadoResponse:
+    """
+    Desliga o associado do clube preservando cadastro e histórico financeiro (não há exclusão).
+    Cancela faturas pendentes ainda não vencidas, convites e reservas futuras.
+    """
+    service = AssociadoService(db)
+    return await service.inativar_associado(associado_id, motivo=data.motivo)
+
+
+@router.post("/{associado_id}/reativar", response_model=AssociadoResponse)
+async def reativar_associado(
+    associado_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+) -> AssociadoResponse:
+    """Reativa um associado inativo."""
+    service = AssociadoService(db)
+    return await service.reativar_associado(associado_id)
+
+
+@router.put("/{associado_id}/foto", response_model=AssociadoResponse)
+async def enviar_foto_associado(
+    associado_id: uuid.UUID,
+    file: UploadFile = File(..., description="Foto JPG, PNG ou WEBP"),
+    db: AsyncSession = Depends(get_db)
+) -> AssociadoResponse:
+    """Envia (ou substitui) a foto do associado."""
+    max_bytes = settings.FOTO_MAX_BYTES
+    conteudo = await file.read(max_bytes + 1)
+    if len(conteudo) > max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"A foto excede o limite máximo permitido de {max_bytes // (1024 * 1024)} MB."
+        )
+    service = AssociadoService(db)
+    return await service.atualizar_foto(associado_id, conteudo)
+
+
+@router.get("/{associado_id}/foto", response_class=FileResponse)
+async def obter_foto_associado(
+    associado_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db)
+) -> FileResponse:
+    """Retorna a foto do associado (rota protegida: o painel baixa a imagem com o token)."""
+    service = AssociadoService(db)
+    caminho, media_type = await service.obter_foto(associado_id)
+    return FileResponse(caminho, media_type=media_type, headers={"Cache-Control": "private, max-age=86400"})
+
+
+@router.delete("/{associado_id}/foto", status_code=status.HTTP_204_NO_CONTENT)
+async def remover_foto_associado(
     associado_id: uuid.UUID,
     db: AsyncSession = Depends(get_db)
 ) -> None:
-    """Remove um associado do clube."""
+    """Remove a foto do associado."""
     service = AssociadoService(db)
-    await service.delete_associado(associado_id)
+    await service.remover_foto(associado_id)
 
 
 @router.post(

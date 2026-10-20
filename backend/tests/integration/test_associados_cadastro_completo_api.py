@@ -203,6 +203,7 @@ async def test_inativar_preserva_historico_e_cancela_somente_o_futuro(async_clie
                                        data_fim=inicio + timedelta(hours=1), status=StatusAgendamento.CONFIRMADO)
     db_session.add_all([vencida, paga, a_vencer, convite_passado, convite_futuro, reserva_futura])
     await db_session.commit()
+    ids = {"passado": convite_passado.id, "futuro": convite_futuro.id, "reserva": reserva_futura.id}
 
     res = await async_client.post(f"{URL}{socio['id']}/inativar", json={"motivo": "Mudou de cidade"})
     assert res.status_code == 200, res.text
@@ -214,17 +215,19 @@ async def test_inativar_preserva_historico_e_cancela_somente_o_futuro(async_clie
     assert corpo["convites_cancelados"] == 1
     assert corpo["reservas_canceladas"] == 1
 
-    db_session.expire_all()
-    status_faturas = {f.referencia_mes: f.status for f in (await db_session.execute(
-        select(Fatura).where(Fatura.associado_id == sid))).scalars()}
+    status_faturas = dict((await db_session.execute(
+        select(Fatura.referencia_mes, Fatura.status).where(Fatura.associado_id == sid))).all())
     assert status_faturas == {
         "2026-09": StatusFatura.ATRASADA,
         "2026-08": StatusFatura.PAGO,
         "2026-10": StatusFatura.CANCELADO,
     }
-    assert (await db_session.get(Convidado, convite_passado.id)).status == StatusConvidado.UTILIZADO
-    assert (await db_session.get(Convidado, convite_futuro.id)).status == StatusConvidado.CANCELADO
-    assert (await db_session.get(AgendamentoQuadra, reserva_futura.id)).status == StatusAgendamento.CANCELADO
+    status_convites = dict((await db_session.execute(
+        select(Convidado.id, Convidado.status).where(Convidado.associado_titular_id == sid))).all())
+    assert status_convites == {ids["passado"]: StatusConvidado.UTILIZADO, ids["futuro"]: StatusConvidado.CANCELADO}
+    status_reserva = await db_session.scalar(
+        select(AgendamentoQuadra.status).where(AgendamentoQuadra.id == ids["reserva"]))
+    assert status_reserva == StatusAgendamento.CANCELADO
 
     # O sócio continua existindo com todo o histórico
     assert (await async_client.get(f"{URL}{socio['id']}")).status_code == 200

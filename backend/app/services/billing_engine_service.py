@@ -14,7 +14,7 @@ from sqlalchemy.orm import joinedload
 
 from app.core.clock import hoje_clube
 from app.core.constants import DIAS_AVISO_CARENCIA, DIAS_CARENCIA_BLOQUEIO
-from app.models.associado import StatusAssociado
+from app.models.associado import Associado, StatusAssociado
 from app.models.fatura import Fatura, StatusFatura
 from app.models.log_mensagem import EtapaRegua, LogMensagem, StatusEnvio
 from app.repositories.configuracao_repository import ConfiguracaoRepository
@@ -95,9 +95,12 @@ class BillingEngineService:
             stmt = (
                 select(Fatura)
                 .options(joinedload(Fatura.associado))
+                .join(Fatura.associado)
                 .where(
                     Fatura.status.in_([StatusFatura.PENDENTE, StatusFatura.ATRASADA]),
                     Fatura.data_vencimento.in_(datas_alvo),
+                    # Sócios inativos saem da régua automática; dívidas antigas ficam para cobrança manual
+                    Associado.status != StatusAssociado.INATIVO,
                 )
             )
             result = await self.session.execute(stmt)

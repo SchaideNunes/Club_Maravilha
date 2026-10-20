@@ -39,7 +39,9 @@ class AssociadoRepository:
         """
         query = select(Associado).where(Associado.id == associado_id)
         if for_update:
-            query = query.with_for_update()
+            # OF associados: o plano vem por LEFT JOIN (lazy="joined") e o PostgreSQL não aceita
+            # FOR UPDATE no lado anulável de um outer join
+            query = query.with_for_update(of=Associado)
         if com_convidados:
             query = query.options(selectinload(Associado.convidados))
         result = await self.session.execute(query)
@@ -146,6 +148,9 @@ class AssociadoRepository:
         filters = []
         if status:
             filters.append(Associado.status == status)
+        else:
+            # Inativos (desligados do clube) só aparecem quando filtrados explicitamente
+            filters.append(Associado.status != StatusAssociado.INATIVO)
 
         if q:
             term_raw = q.strip()
@@ -222,16 +227,7 @@ class AssociadoRepository:
         return items, total
 
     async def create(self, associado_in: AssociadoCreate) -> Associado:
-        associado = Associado(
-            nome=associado_in.nome,
-            cpf=associado_in.cpf,
-            whatsapp=associado_in.whatsapp,
-            email=associado_in.email,
-            foto_url=associado_in.foto_url,
-            observacoes=associado_in.observacoes,
-            dia_vencimento=associado_in.dia_vencimento,
-            status=StatusAssociado.ATIVO,
-        )
+        associado = Associado(**associado_in.model_dump(), status=StatusAssociado.ATIVO)
         self.session.add(associado)
         await self.session.flush()
         await self.session.refresh(associado)

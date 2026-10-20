@@ -134,12 +134,12 @@ def _script() -> ScriptDirectory:
     return ScriptDirectory.from_config(config)
 
 
-def test_migracao_usuarios_admin_e_a_unica_head():
+def test_migracao_usuarios_admin_esta_na_cadeia_com_uma_unica_head():
     script = _script()
-    heads = script.get_heads()
-    assert len(heads) == 1
-    revisao = script.get_revision(heads[0])
+    assert len(script.get_heads()) == 1
+    revisao = script.get_revision("e5a1b2c3d4e5")
     assert revisao.down_revision == "d485e921b712"
+    assert revisao.revision in {r.revision for r in script.walk_revisions()}
 
     fonte = Path(revisao.path).read_text(encoding="utf-8")
     assert "usuarios_admin" in fonte

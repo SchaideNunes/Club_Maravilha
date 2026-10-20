@@ -2,7 +2,9 @@
 Exportação consolidada dos modelos e enums do Club Maravilha para o SQLAlchemy e Alembic.
 """
 from app.models.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
-from app.models.associado import Associado, StatusAssociado
+from app.models.associado import Associado, Sexo, StatusAssociado
+from app.models.plano import Plano
+from app.models.membro_familia import MembroFamilia, Parentesco
 from app.models.fatura import Fatura, FormaPagamento, StatusFatura
 from app.models.agendamento import AgendamentoQuadra, StatusAgendamento, TipoQuadra
 from app.models.convidado import Convidado, StatusConvidado, generate_qr_token
@@ -16,6 +18,10 @@ __all__ = [
     "UUIDPrimaryKeyMixin",
     "Associado",
     "StatusAssociado",
+    "Sexo",
+    "Plano",
+    "MembroFamilia",
+    "Parentesco",
     "Fatura",
     "StatusFatura",
     "FormaPagamento",

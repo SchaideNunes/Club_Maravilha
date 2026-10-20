@@ -2,26 +2,35 @@
 Camada de serviço de negócio para gestão de Associados.
 Centraliza validações, regras de domínio e chamadas de repositório.
 """
-from datetime import date
+from datetime import date, timezone
 import math
-from typing import Iterable, List, Optional, Sequence
+from pathlib import Path
+import time
+from typing import Iterable, List, Optional, Sequence, Tuple
 import uuid
 from fastapi import HTTPException, status
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core import clock
 from app.core.clock import hoje_clube
+from app.models.agendamento import AgendamentoQuadra, StatusAgendamento
 from app.models.associado import Associado, StatusAssociado
-from app.models.fatura import StatusFatura
+from app.models.convidado import Convidado, StatusConvidado
+from app.models.fatura import Fatura, StatusFatura
 from app.repositories.associado_repository import AssociadoRepository
 from app.repositories.configuracao_repository import ConfiguracaoRepository
+from app.repositories.plano_repository import PlanoRepository
 from app.schemas.associado import (
     AssociadoCreate,
     AssociadoResponse,
     AssociadoUpdate,
     ImportAssociadosResult,
+    InativacaoAssociadoResponse,
     PaginatedAssociadosResponse,
     SituacaoFinanceira,
 )
 from app.services.excel_import_service import parse_excel_or_csv_bytes
+from app.services import foto_service
 
 
 def calcular_situacao_financeira(status_faturas: Iterable[StatusFatura]) -> SituacaoFinanceira:
@@ -44,6 +53,7 @@ class AssociadoService:
         self.session = session
         self.repository = AssociadoRepository(session)
         self.configuracao_repo = ConfiguracaoRepository(session)
+        self.plano_repo = PlanoRepository(session)
 
     async def _enriquecer_associados(self, associados: Sequence[Associado]) -> List[AssociadoResponse]:
         """
@@ -148,6 +158,8 @@ class AssociadoService:
                 detail=f"Já existe um associado cadastrado com o e-mail {data.email}."
             )
 
+        await self._validar_plano(data.plano_id)
+
         associado = await self.repository.create(data)
         await self.session.commit()
 
@@ -174,21 +186,143 @@ class AssociadoService:
                     detail="Este e-mail já está sendo utilizado por outro associado."
                 )
 
+        if "status" in data.model_fields_set:
+            if data.status == StatusAssociado.INATIVO:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Para desligar o associado use a ação de inativar.",
+                )
+            if associado.status == StatusAssociado.INATIVO:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Associado inativo: use a ação de reativar.",
+                )
+
+        if "plano_id" in data.model_fields_set:
+            await self._validar_plano(data.plano_id, plano_atual_id=associado.plano_id)
+
         updated = await self.repository.update(associado, data)
         await self.session.commit()
 
         enriquecidos = await self._enriquecer_associados([updated])
         return enriquecidos[0]
 
-    async def delete_associado(self, associado_id: uuid.UUID) -> None:
-        """Remove o associado do clube."""
-        deleted = await self.repository.delete(associado_id)
-        if not deleted:
+    async def _validar_plano(self, plano_id: Optional[uuid.UUID], plano_atual_id: Optional[uuid.UUID] = None) -> None:
+        """
+        Novos vínculos só podem usar planos ativos. Manter o plano atual é sempre permitido,
+        mesmo que ele tenha sido desativado depois.
+        """
+        if plano_id is None or plano_id == plano_atual_id:
+            return
+        plano = await self.plano_repo.get_by_id(plano_id)
+        if not plano or not plano.ativo:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Associado não encontrado para exclusão."
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Plano informado não existe ou está desativado.",
             )
+
+    async def _get_or_404(self, associado_id: uuid.UUID, for_update: bool = False) -> Associado:
+        associado = await self.repository.get_by_id(associado_id, for_update=for_update)
+        if not associado:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Associado não encontrado.")
+        return associado
+
+    async def inativar_associado(
+        self, associado_id: uuid.UUID, motivo: Optional[str] = None
+    ) -> InativacaoAssociadoResponse:
+        """
+        Desliga o sócio sem apagar nada: faturas vencidas continuam em aberto como dívida, e só o
+        que ainda está por vir é cancelado (faturas pendentes não vencidas, convites e reservas futuras).
+        """
+        associado = await self._get_or_404(associado_id, for_update=True)
+        if associado.status == StatusAssociado.INATIVO:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="O associado já está inativo.")
+
+        hoje = hoje_clube()
+        faturas = await self.session.execute(
+            update(Fatura)
+            .where(
+                Fatura.associado_id == associado_id,
+                Fatura.status == StatusFatura.PENDENTE,
+                Fatura.data_vencimento >= hoje,
+            )
+            .values(status=StatusFatura.CANCELADO)
+        )
+        convites = await self.session.execute(
+            update(Convidado)
+            .where(
+                Convidado.associado_titular_id == associado_id,
+                Convidado.status == StatusConvidado.EMITIDO,
+                Convidado.data_visita >= hoje,
+            )
+            .values(status=StatusConvidado.CANCELADO)
+        )
+        reservas = await self.session.execute(
+            update(AgendamentoQuadra)
+            .where(
+                AgendamentoQuadra.associado_id == associado_id,
+                AgendamentoQuadra.status == StatusAgendamento.CONFIRMADO,
+                AgendamentoQuadra.data_inicio >= clock.agora_clube().astimezone(timezone.utc),
+            )
+            .values(status=StatusAgendamento.CANCELADO)
+        )
+
+        associado.status = StatusAssociado.INATIVO
+        associado.data_inativacao = hoje
+        associado.motivo_inativacao = motivo
         await self.session.commit()
+        await self.session.refresh(associado)
+
+        return InativacaoAssociadoResponse(
+            associado=(await self._enriquecer_associados([associado]))[0],
+            faturas_canceladas=faturas.rowcount,
+            convites_cancelados=convites.rowcount,
+            reservas_canceladas=reservas.rowcount,
+        )
+
+    async def reativar_associado(self, associado_id: uuid.UUID) -> AssociadoResponse:
+        """
+        Traz o sócio de volta como ATIVO. Se ainda houver dívida antiga, a régua diária volta a
+        tratá-lo normalmente (inclusive marcando-o como inadimplente).
+        """
+        associado = await self._get_or_404(associado_id, for_update=True)
+        if associado.status != StatusAssociado.INATIVO:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="O associado não está inativo.")
+
+        associado.status = StatusAssociado.ATIVO
+        associado.data_inativacao = None
+        associado.motivo_inativacao = None
+        await self.session.commit()
+        await self.session.refresh(associado)
+        return (await self._enriquecer_associados([associado]))[0]
+
+    async def atualizar_foto(self, associado_id: uuid.UUID, conteudo: bytes) -> AssociadoResponse:
+        associado = await self._get_or_404(associado_id)
+        extensao = foto_service.detectar_formato(conteudo)
+        if extensao is None:
+            raise HTTPException(
+                status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+                detail="Formato de imagem não suportado. Envie uma foto JPG, PNG ou WEBP.",
+            )
+
+        foto_service.salvar_foto(associado_id, conteudo, extensao)
+        # O parâmetro de versão força o navegador a buscar a foto nova em vez da que está em cache
+        associado.foto_url = f"/api/v1/associados/{associado_id}/foto?v={int(time.time())}"
+        await self.session.commit()
+        await self.session.refresh(associado)
+        return (await self._enriquecer_associados([associado]))[0]
+
+    async def remover_foto(self, associado_id: uuid.UUID) -> None:
+        associado = await self._get_or_404(associado_id)
+        foto_service.remover_foto(associado_id)
+        associado.foto_url = None
+        await self.session.commit()
+
+    async def obter_foto(self, associado_id: uuid.UUID) -> Tuple[Path, str]:
+        foto = foto_service.localizar_foto(associado_id)
+        if foto is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="O associado não possui foto.")
+        return foto
 
     async def import_associados_planilha(
         self,

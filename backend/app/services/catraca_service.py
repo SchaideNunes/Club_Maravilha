@@ -47,7 +47,7 @@ class CatracaService:
                 Associado.facial_id.is_not(None),
                 not_(Associado.id.in_(subquery_bloqueados))
             )
-        )
+        ).order_by(Associado.id)
         res_associados = await self.session.execute(query_associados)
         associados = res_associados.scalars().all()
 
@@ -57,7 +57,7 @@ class CatracaService:
                 Convidado.status == StatusConvidado.EMITIDO,
                 Convidado.data_visita == hoje
             )
-        )
+        ).order_by(Convidado.id)
         res_convidados = await self.session.execute(query_convidados)
         convidados = res_convidados.scalars().all()
 
@@ -82,8 +82,9 @@ class CatracaService:
             for conv in convidados
         ]
 
-        # Calcula checksum MD5 para verificação de versão pela catraca
-        payload_str = json.dumps({"m": len(members_list), "g": len(guests_list)}, sort_keys=True)
+        # Checksum do conteúdo (não só da contagem): trocar um sócio por outro também muda a versão,
+        # e a catraca baixa a lista de novo
+        payload_str = json.dumps({"m": members_list, "g": guests_list}, sort_keys=True)
         checksum = hashlib.md5(payload_str.encode("utf-8")).hexdigest()
 
         return {
@@ -120,7 +121,12 @@ class CatracaService:
                 select(Convidado).where(Convidado.qr_code_token == token)
             )
             convidado = res_conv.scalar_one_or_none()
-            if convidado and convidado.status == StatusConvidado.EMITIDO:
+            # O QR do convidado só vale no dia da visita
+            if (
+                convidado
+                and convidado.status == StatusConvidado.EMITIDO
+                and convidado.data_visita == hoje_clube()
+            ):
                 convidado.status = StatusConvidado.UTILIZADO
                 convidado.check_in_at = datetime.now(timezone.utc)
                 await self.session.commit()

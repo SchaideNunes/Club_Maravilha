@@ -123,6 +123,17 @@ class Settings(BaseSettings):
                 raise RuntimeError(
                     "PIX_WEBHOOK_SECRET inválido ou inseguro para produção. Defina um segredo forte diferente do padrão."
                 )
+
+            # O token da catraca protege a lista de quem pode entrar e a baixa dos convites
+            valores_inseguros_catraca = {"mock_turnstile_token", "token_seguranca_catraca_local"}
+            if (
+                not self.TURNSTILE_API_TOKEN
+                or self.TURNSTILE_API_TOKEN in valores_inseguros_catraca
+                or len(self.TURNSTILE_API_TOKEN) < 16
+            ):
+                raise RuntimeError(
+                    "TURNSTILE_API_TOKEN inválido ou inseguro para produção. Defina um token forte com pelo menos 16 caracteres."
+                )
         return self
 
     model_config = SettingsConfigDict(

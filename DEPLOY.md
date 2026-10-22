@@ -66,6 +66,7 @@ nano .env
 5. `ALLOWED_ORIGINS`: Coloque o domínio do clube (ex: `https://clubmaravilha.com.br,https://www.clubmaravilha.com.br`).
 6. `PIX_WEBHOOK_SECRET`: Chave secreta compartilhada com a Efí (Gerencianet).
 7. `WHATSAPP_API_KEY`: Chave compartilhada entre o backend e o motor de WhatsApp próprio (`whatsapp-engine`, baseado em Baileys). Defina um valor forte. **Obrigatória**: o `docker-compose.prod.yml` não sobe sem ela. O backend já acessa o motor pela rede interna (`WHATSAPP_ENGINE_URL=http://whatsapp-engine:3001`, definido no compose). A sessão do número conectado fica no volume Docker `whatsapp_auth`: não o apague (`docker compose down -v`), ou será preciso ler o QR Code novamente.
+8. `TURNSTILE_API_TOKEN`: Token que a controladora da catraca envia no header `X-Turnstile-Token`. Gere com `openssl rand -hex 24`. **Obrigatório**: em produção a API não sobe com o valor padrão ou com menos de 16 caracteres.
 
 Salve o arquivo (`Ctrl + O`, depois `Enter`, depois `Ctrl + X`).
 

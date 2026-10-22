@@ -54,8 +54,8 @@ class BillingEngineService:
         configuracao = await cfg_repo.get_or_create()
 
         if not configuracao.automacao_ativa:
-            logger.info("[BillingEngine] Automação desativada na Configuração. Nenhuma ação executada.")
-            return BillingExecutionReport(
+            # Sem mensagens, mas a inadimplência (e o bloqueio na catraca) não depende do WhatsApp
+            report = BillingExecutionReport(
                 data_referencia=hoje,
                 automacao_ativa=False,
                 d_minus_3_enviados=0,
@@ -68,6 +68,18 @@ class BillingEngineService:
                 ignorados_sem_whatsapp=0,
                 erros=[],
             )
+            try:
+                await self._marcar_inadimplentes(hoje, report)
+                await self.session.commit()
+            except Exception as exc:
+                await self.session.rollback()
+                logger.error(f"[BillingEngine] Erro ao marcar inadimplentes: {exc}", exc_info=True)
+                report.erros.append(str(exc))
+            logger.info(
+                "[BillingEngine] Automação desativada: nenhuma mensagem enviada; "
+                f"novos inadimplentes={report.inadimplentes_atualizados}."
+            )
+            return report
 
         report = BillingExecutionReport(
             data_referencia=hoje,

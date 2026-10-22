@@ -181,7 +181,13 @@ async def simular_pagamento_pix(
     3. Reativação automática do associado (se inadimplente -> ATIVO).
     4. Enfileiramento com PRIORIDADE MÁXIMA do recibo digital via WhatsApp.
     5. Disparo de sincronização imediata com a catraca física.
+    Indisponível em produção: lá a baixa sem gateway é feita pela baixa manual.
     """
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Simulação de pagamento indisponível em produção. Use a baixa manual.",
+        )
     service = FaturaService(db)
     fatura = await service.get_by_id(fatura_id)
     payload = {

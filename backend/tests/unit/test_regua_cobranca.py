@@ -23,7 +23,8 @@ Contrato (app/services/billing_engine_service.py):
   logs ERRO não bloqueiam (nova tentativa); os campos legados `notificado_*` NÃO são mais critério.
   A consulta é agregada: o número de SELECTs não cresce com a quantidade de faturas (sem N+1).
 - Associado sem WhatsApp (vazio/brancos): ignorado sem quebrar (conta em `ignorados_sem_whatsapp`).
-- Configuracao.automacao_ativa == False: nada é enfileirado nem alterado; relatório com automacao_ativa=False.
+- Configuracao.automacao_ativa == False: nada é enfileirado; relatório com automacao_ativa=False (a marcação
+  de inadimplência após DIAS_CARENCIA_BLOQUEIO continua; ver test_correcoes_operacionais.py).
 - BillingExecutionReport: data_referencia, d_minus_3_enviados, d_zero_enviados, d_plus_3_enviados,
   d_plus_7_enviados, inadimplentes_atualizados, total_enfileirados, ja_enviados, ignorados_sem_whatsapp,
   automacao_ativa, erros.

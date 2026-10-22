@@ -4,6 +4,7 @@ Testes unitários para o serviço de Catraca Facial e Whitelist Offline.
 import pytest
 from datetime import date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.clock import hoje_clube
 from app.core.constants import DIAS_CARENCIA_BLOQUEIO
 from app.models.associado import Associado, StatusAssociado
 from app.models.convidado import Convidado, StatusConvidado
@@ -104,7 +105,7 @@ async def test_catraca_process_guest_turnstile_event(db_session: AsyncSession):
     conv = Convidado(
         associado_titular_id=socio.id,
         nome="Visitante Catraca",
-        data_visita=date.today(),
+        data_visita=hoje_clube(),
         status=StatusConvidado.EMITIDO
     )
     db_session.add(conv)

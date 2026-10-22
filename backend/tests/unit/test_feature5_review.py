@@ -251,6 +251,7 @@ def test_settings_producao_rejeita_segredos_padrao_e_curtos():
         ENVIRONMENT="production",
         SECRET_KEY=secrets.token_urlsafe(48),
         PIX_WEBHOOK_SECRET="segredo_webhook_super_seguro_producao_2026",
+        TURNSTILE_API_TOKEN=secrets.token_urlsafe(24),
     )
     assert s.ENVIRONMENT == "production"
 
